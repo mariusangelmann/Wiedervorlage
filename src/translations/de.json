@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "Sekunden",
+    "minutes": "Minuten",
+    "hours": "Stunden",
+    "days": "Tage",
+    "weeks": "Wochen"
+  },
+  "emails": {
+    "confirmationSubject": "Reminder wurde erstellt",
+    "confirmationBody": "Ihr Reminder wurde erstellt und wird in {timeStr} zugestellt.\nGeplante Zustellung: {deliveryTime}",
+    "reminderSubject": "REMINDER: {subject}",
+    "reminderBody": "Dies ist Ihr angeforderter Reminder (Intervall: {interval}).\n\nReminder erstellt am: {createdTime}\n\nOriginal Nachricht:\n{separator}\n{body}",
+    "unknownInterval": "Unbekanntes Intervall"
+  },
+  "console": {
+    "serviceStart": "Reminder-Service wird mit Prüfintervall von {interval}s gestartet",
+    "debugMode": "Debug-Modus: {enabled}",
+    "mainLoopError": "Fehler in der Hauptschleife:",
+    "heartbeatEnabled": "BetterStack Heartbeat-Überwachung aktiviert (URL: {url}, Intervall: {interval}s)"
+  }
+}

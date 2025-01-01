@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "seconds",
+    "minutes": "minutes",
+    "hours": "hours",
+    "days": "days",
+    "weeks": "weeks"
+  },
+  "emails": {
+    "confirmationSubject": "Reminder Created",
+    "confirmationBody": "Your reminder has been created and will be delivered in {timeStr}.\nScheduled delivery: {deliveryTime}",
+    "reminderSubject": "REMINDER: {subject}",
+    "reminderBody": "This is your requested reminder (Interval: {interval}).\n\nReminder created on: {createdTime}\n\nOriginal Message:\n{separator}\n{body}",
+    "unknownInterval": "Unknown interval"
+  },
+  "console": {
+    "serviceStart": "Starting reminder service with {interval}s check interval",
+    "debugMode": "Debug mode: {enabled}",
+    "mainLoopError": "Error in main loop:",
+    "heartbeatEnabled": "BetterStack heartbeat monitoring enabled (URL: {url}, Interval: {interval}s)"
+  }
+}

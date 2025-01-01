@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "secondes",
+    "minutes": "minutes",
+    "hours": "heures",
+    "days": "jours",
+    "weeks": "semaines"
+  },
+  "emails": {
+    "confirmationSubject": "Rappel créé",
+    "confirmationBody": "Votre rappel a été créé et sera livré dans {timeStr}.\nLivraison prévue: {deliveryTime}",
+    "reminderSubject": "RAPPEL: {subject}",
+    "reminderBody": "Voici votre rappel demandé (Intervalle: {interval}).\n\nRappel créé le: {createdTime}\n\nMessage d'origine:\n{separator}\n{body}",
+    "unknownInterval": "Intervalle inconnu"
+  },
+  "console": {
+    "serviceStart": "Démarrage du service de rappel avec intervalle de vérification de {interval}s",
+    "debugMode": "Mode debug: {enabled}",
+    "mainLoopError": "Erreur dans la boucle principale:",
+    "heartbeatEnabled": "Surveillance BetterStack activée (URL: {url}, Intervalle: {interval}s)"
+  }
+}
