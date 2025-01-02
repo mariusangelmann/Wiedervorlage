@@ -1,5 +1,5 @@
 {
-  "name": "wiedervorlage-node",
+  "name": "Wiedervorlage",
   "version": "1.0.0",
   "description": "Email-based reminder service that allows scheduling reminders through special email addresses",
   "main": "dist/index.js",
