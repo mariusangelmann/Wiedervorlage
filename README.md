@@ -30,8 +30,8 @@ Never forget important things again! This is my personal email-based reminder se
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/mariusangelmann/wiedervorlage.git
-cd wiedervorlage
+git clone https://github.com/mariusangelmann/Wiedervorlage.git
+cd Wiedervorlage
 ```
 
 2. Install dependencies:
