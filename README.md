@@ -67,7 +67,7 @@ The following environment variables need to be configured in your `.env` file:
 
 ### Optional language settings
 ```env
-LANGUAGE=en # or 'de' for German
+LANGUAGE=en # or 'de' for German / 'fr' for French
 CUSTOM_TRANSLATIONS_PATH=path/to/custom-translations.json # optional
 ```
 
