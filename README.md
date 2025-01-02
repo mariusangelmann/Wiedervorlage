@@ -65,7 +65,8 @@ The following environment variables need to be configured in your `.env` file:
 - `SMTP_USER`: SMTP username
 - `SMTP_PASSWORD`: SMTP password
 
-# Optional language settings
+### Optional language settings
+```env
 LANGUAGE=en # or 'de' for German
 CUSTOM_TRANSLATIONS_PATH=path/to/custom-translations.json # optional
 ```
