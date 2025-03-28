@@ -29,7 +29,7 @@ export const TIME_PATTERNS: TimePatterns = {
 };
 
 export function cleanSubject(subject: string): string {
-  return subject.replace(/^(?:Re|Fwd|FW|AW):\s*/i, '');
+  return subject.replace(/^(?:Re|Fwd|FW|AW):\s*/i, '').replace(/[\u2000-\u206F\u2E00-\u2E7F!'#$%&*+,/:;=?@^`~]/g, '');
 }
 
 import { TranslationService } from './translations';

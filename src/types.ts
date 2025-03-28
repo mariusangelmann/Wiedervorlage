@@ -7,6 +7,7 @@ export interface Reminder {
   timeUnit: string;
   timeAmount: number;
   createdAt: string;
+  html?: string;
 }
 
 export interface EmailConfig {

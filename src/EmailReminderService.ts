@@ -1,15 +1,15 @@
 import * as nodemailer from 'nodemailer';
-import ImapClient from 'imap-simple';
 import { simpleParser } from 'mailparser';
 import { promises as fs } from 'fs';
 import { EmailConfig, Reminder, Settings } from './types';
 import { TIME_PATTERNS, cleanSubject, formatTimeString, delay } from './utils';
 import { TranslationService } from './translations';
 import { HeartbeatService } from './HeartbeatService';
+import * as Mailparser from 'mailparser';
 
 export class EmailReminderService {
   private transporter: nodemailer.Transporter;
-  private imapConfig: ImapClient.ImapSimpleOptions;
+  private imapConfig: any;
   private emailConfig: EmailConfig;
   private settings: Settings;
   private translator: TranslationService;
@@ -50,13 +50,14 @@ export class EmailReminderService {
     try {
       this.imapConfig = {
         imap: {
-          user: emailConfig.username,
-          password: emailConfig.password,
-          host: emailConfig.imapServer,
-          port: emailConfig.imapPort,
+          user: this.emailConfig.username,
+          password: this.emailConfig.password,
+          host: this.emailConfig.imapServer,
+          port: this.emailConfig.imapPort,
           tls: true,
           tlsOptions: { rejectUnauthorized: false },
-          debug: this.settings.debugMode ? console.log : undefined
+          debug: this.settings.debugMode ? console.log : undefined,
+          connectionTimeout: 10000 // Increase timeout to 10 seconds
         }
       };
       console.log('IMAP config created successfully');
@@ -136,22 +137,25 @@ export class EmailReminderService {
   }
 
   private async sendReminder(reminder: Reminder): Promise<void> {
-    const intervalText = `${reminder.timeAmount} ${this.translator.getTimeUnitText(reminder.timeUnit)}`;
-    const createdTime = new Date(reminder.createdAt);
+      const intervalText = `${reminder.timeAmount} ${this.translator.getTimeUnitText(reminder.timeUnit)}`;
+      const createdTime = new Date(reminder.createdAt);
 
-    await this.transporter.sendMail({
-      from: this.emailConfig.username,
-      to: reminder.originalFrom,
-      subject: this.translator.translate('emails.reminderSubject', { subject: reminder.subject }),
-      text: this.translator.translate('emails.reminderBody', {
+      const textBody = this.translator.translate('emails.reminderBody', {
         interval: intervalText,
         createdTime: createdTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US'),
         separator: '='.repeat(50),
         body: reminder.body
-      }),
-      references: reminder.references
-    });
-  }
+      });
+
+      await this.transporter.sendMail({
+        from: this.emailConfig.username,
+        to: reminder.originalFrom,
+        subject: this.translator.translate('emails.reminderSubject', { subject: reminder.subject }),
+        text: textBody,
+        html: reminder.html || textBody,
+        references: reminder.references
+      });
+    }
 
   public async processReminders(): Promise<void> {
     if (this.settings.debugMode) {
@@ -196,14 +200,28 @@ export class EmailReminderService {
   }
 
   public async checkMailbox(): Promise<void> {
-    let connection: ImapClient.ImapSimple | null = null;
+    let connection: any | null = null;
     try {
       if (this.settings.debugMode) {
         console.log('[DEBUG] Starting mailbox check');
         console.log(`[DEBUG] Connecting to IMAP server: ${this.emailConfig.imapServer}:${this.emailConfig.imapPort}`);
       }
 
-      connection = await ImapClient.connect(this.imapConfig);
+      const imapConfig = {
+        imap: {
+          user: this.emailConfig.username,
+          password: this.emailConfig.password,
+          host: this.emailConfig.imapServer,
+          port: this.emailConfig.imapPort,
+          tls: true,
+          tlsOptions: { rejectUnauthorized: false },
+          debug: this.settings.debugMode ? console.log : undefined,
+          connectionTimeout: 10000 // Increase timeout to 10 seconds
+        }
+      };
+
+      const imapSimple = require('imap-simple');
+      connection = await imapSimple.connect(imapConfig);
       
       if (this.settings.debugMode) {
         console.log('[DEBUG] IMAP connection established successfully');
@@ -256,24 +274,23 @@ export class EmailReminderService {
           console.log('[DEBUG] Processing message:', message.attributes?.uid);
         }
 
-        // Get the headers and text parts
-        const headerPart = message.parts.find(p => p.which === 'HEADER.FIELDS (FROM TO CC BCC DELIVERED-TO X-ORIGINAL-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)');
-        const textPart = message.parts.find(p => p.which === 'TEXT');
-        
-        if (!headerPart || !textPart) {
+        // Get the entire message as a single string
+        const allHeadersPart = message.parts.find(p => p.which === 'HEADER');
+        if (!allHeadersPart) {
           console.log('[DEBUG] Missing required message parts');
           continue;
         }
+        const allHeaders = allHeadersPart.body as string;
+
+        // Use mailparser to parse the entire message
+        const parsedMessage = await simpleParser(allHeaders);
 
         if (this.settings.debugMode) {
-          console.log('[DEBUG] Header part:', headerPart.body);
-          console.log('[DEBUG] Text part:', textPart.body);
+          console.log('[DEBUG] Parsed message:', parsedMessage);
         }
 
-        // Parse headers directly from the IMAP response
-        const headers = headerPart.body as { [key: string]: string | string[] };
-        const text = textPart.body as string;
-        
+        const { to, cc, bcc, from, subject, messageId, text, html } = parsedMessage;
+
         // Helper function to convert header values to strings
         const headerToString = (value: string | string[]): string => {
           return Array.isArray(value) ? value.join(', ') : value;
@@ -281,19 +298,20 @@ export class EmailReminderService {
         
         // Manually extract header lines we need
         const headerLines = [
-          { key: 'delivered-to', line: headerToString(headers['delivered-to'] || '') },
-          { key: 'x-original-to', line: headerToString(headers['x-original-to'] || '') }
+          { key: 'delivered-to', line: headerToString(parsedMessage.headerLines?.find(h => h.key === 'delivered-to')?.line || '') },
+          { key: 'x-original-to', line: headerToString(parsedMessage.headerLines?.find(h => h.key === 'x-original-to')?.line || '') }
         ];
         
         // Parse headers while maintaining original structure
         const parsed = {
-          to: headers['to'] || '',
-          cc: headers['cc'] || '',
-          bcc: headers['bcc'] || '',
-          from: headers['from'] || '',
-          subject: headers['subject'] || '',
-          messageId: headers['message-id'] || '',
-          text,
+          to: to || '',
+          cc: cc || '',
+          bcc: bcc || '',
+          from: from || '',
+          subject: subject || '',
+          messageId: messageId || '',
+          text: text || '',
+          html: html || '',
           headerLines
         };
         
@@ -302,7 +320,7 @@ export class EmailReminderService {
             to: parsed.to,
             cc: parsed.cc,
             bcc: parsed.bcc,
-            from: headerToString(parsed.from || ''),
+            from: headerToString(parsed.from?.value || ''),
             subject: parsed.subject,
             deliveredTo: parsed.headerLines.find(h => h.key === 'delivered-to')?.line,
             originalTo: parsed.headerLines.find(h => h.key === 'x-original-to')?.line
@@ -317,9 +335,9 @@ export class EmailReminderService {
         // Get all possible recipient addresses
         const allRecipients = [
           // Regular recipients
-          ...toStr.split(',').map((addr: string) => ({ text: addr.trim() })),
-          ...ccStr.split(',').map((addr: string) => ({ text: addr.trim() })),
-          ...bccStr.split(',').map((addr: string) => ({ text: addr.trim() })),
+          ...toStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
+          ...ccStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
+          ...bccStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
           // Additional headers that might contain the reminder address
           // Extract addresses from additional headers, handling potential multiple addresses
           ...parsed.headerLines
@@ -394,14 +412,15 @@ export class EmailReminderService {
             // Convert from header to string
             const fromStr = Array.isArray(parsed.from) ? parsed.from.join(', ') : parsed.from;
             // Extract email address from possible "Name <email>" format
-            const match = fromStr.match(/<([^>]+)>/);
-            const fromAddress = match ? match[1] : fromStr.trim();
+            const match = fromStr.match(/(?<=<)([^>]+)(?=>)|([^\s@]+@[^\s@]+\.[^\s@]+)/);
+            const fromAddress = match ? (match[1] || match[2]) : fromStr.trim();
                 
             const reminder: Reminder = {
               originalFrom: fromAddress,
               subject: cleanSubject(Array.isArray(parsed.subject) ? parsed.subject.join(' ') : parsed.subject || ''),
               reminderTime: reminderInfo.reminderTime.toISOString(),
               body: parsed.text || '',
+              html: parsed.html || '',
               references: Array.isArray(parsed.messageId) ? parsed.messageId.join(', ') : parsed.messageId || '',
               timeUnit: reminderInfo.unit,
               timeAmount: reminderInfo.amount,
@@ -432,13 +451,17 @@ export class EmailReminderService {
       if (this.heartbeatService) {
         this.heartbeatService.setHealthStatus(false);
       }
-      throw error;
+      console.error('Error in checkMailbox:', error);
     } finally {
       if (connection) {
         if (this.settings.debugMode) {
           console.log('[DEBUG] Closing IMAP connection');
         }
-        connection.end();
+        try {
+          connection.end();
+        } catch (err) {
+          console.error('Error closing IMAP connection:', err);
+        }
       }
     }
   }
