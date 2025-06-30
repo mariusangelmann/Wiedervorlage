@@ -40,17 +40,18 @@ export class TranslationService {
       console.log('Loading translations from:', baseDir);
       
       // Load built-in translations
-      console.log('Loading English translations...');
-      const enPath = path.join(baseDir, 'en.json');
-      console.log('English translations path:', enPath);
-      const enTranslations = await fs.readFile(enPath, 'utf-8');
-      this.translations.en = JSON.parse(enTranslations);
+      const languages = ['en', 'de', 'fr', 'es', 'it', 'pt', 'nl', 'ja', 'zh', 'hi', 'ar', 'uk', 'ko'];
       
-      console.log('Loading German translations...');
-      const dePath = path.join(baseDir, 'de.json');
-      console.log('German translations path:', dePath);
-      const deTranslations = await fs.readFile(dePath, 'utf-8');
-      this.translations.de = JSON.parse(deTranslations);
+      for (const lang of languages) {
+        try {
+          console.log(`Loading ${lang.toUpperCase()} translations...`);
+          const langPath = path.join(baseDir, `${lang}.json`);
+          const langTranslations = await fs.readFile(langPath, 'utf-8');
+          this.translations[lang] = JSON.parse(langTranslations);
+        } catch (error) {
+          console.warn(`Failed to load ${lang} translations:`, error);
+        }
+      }
 
       // Load custom translations if path is provided
       if (this.customTranslationsPath) {

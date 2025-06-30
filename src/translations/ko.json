@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "초",
+    "minutes": "분",
+    "hours": "시간",
+    "days": "일",
+    "weeks": "주"
+  },
+  "emails": {
+    "confirmationSubject": "리마인더 생성됨",
+    "confirmationBody": "리마인더가 생성되었으며 {timeStr} 후에 전송됩니다.\n예정된 전송 시간: {deliveryTime}",
+    "reminderSubject": "리마인더: {subject}",
+    "reminderBody": "요청하신 리마인더입니다 (간격: {interval}).\n\n리마인더 생성 시간: {createdTime}\n\n원본 메시지:\n{separator}\n{body}",
+    "unknownInterval": "알 수 없는 간격"
+  },
+  "console": {
+    "serviceStart": "{interval}초 확인 간격으로 리마인더 서비스를 시작합니다",
+    "debugMode": "디버그 모드: {enabled}",
+    "mainLoopError": "메인 루프 오류:",
+    "heartbeatEnabled": "BetterStack 하트비트 모니터링 활성화됨 (URL: {url}, 간격: {interval}초)"
+  }
+}

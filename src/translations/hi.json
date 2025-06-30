@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "सेकंड",
+    "minutes": "मिनट",
+    "hours": "घंटे",
+    "days": "दिन",
+    "weeks": "सप्ताह"
+  },
+  "emails": {
+    "confirmationSubject": "रिमाइंडर बनाया गया",
+    "confirmationBody": "आपका रिमाइंडर बनाया गया है और {timeStr} में भेजा जाएगा।\nनिर्धारित डिलीवरी: {deliveryTime}",
+    "reminderSubject": "रिमाइंडर: {subject}",
+    "reminderBody": "यह आपका अनुरोधित रिमाइंडर है (अंतराल: {interval})।\n\nरिमाइंडर बनाया गया: {createdTime}\n\nमूल संदेश:\n{separator}\n{body}",
+    "unknownInterval": "अज्ञात अंतराल"
+  },
+  "console": {
+    "serviceStart": "{interval} सेकंड चेक अंतराल के साथ रिमाइंडर सेवा शुरू हो रही है",
+    "debugMode": "डिबग मोड: {enabled}",
+    "mainLoopError": "मुख्य लूप में त्रुटि:",
+    "heartbeatEnabled": "BetterStack हार्टबीट मॉनिटरिंग सक्षम (URL: {url}, अंतराल: {interval} सेकंड)"
+  }
+}

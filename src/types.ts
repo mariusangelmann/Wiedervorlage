@@ -44,9 +44,12 @@ export interface Settings {
   debugMode: boolean;
   maxRetries: number;
   remindersFile: string;
+  processedFile: string;
   language: string;
   customTranslationsPath?: string;
   heartbeat?: HeartbeatConfig;
+  searchDaysBack?: number; // Number of days to look back for emails (default: 7)
+  deleteProcessedEmails?: boolean; // Move processed reminder emails to trash (default: true)
 }
 
 export interface TimePattern {

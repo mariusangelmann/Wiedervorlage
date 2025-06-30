@@ -36,6 +36,7 @@ const settings: Settings = {
   debugMode: process.env.DEBUG_MODE === 'true',
   maxRetries: parseInt(process.env.MAX_RETRIES || '3', 10),
   remindersFile: process.env.REMINDERS_FILE || 'reminders.json',
+  processedFile: process.env.PROCESSED_FILE || 'processed.json',
   language: process.env.LANGUAGE || 'en',
   customTranslationsPath: process.env.CUSTOM_TRANSLATIONS_PATH,
   heartbeat: {
@@ -44,7 +45,11 @@ const settings: Settings = {
     interval: process.env.HEARTBEAT_INTERVAL 
       ? parseInt(process.env.HEARTBEAT_INTERVAL, 10)
       : undefined
-  }
+  },
+  searchDaysBack: process.env.SEARCH_DAYS_BACK 
+    ? parseInt(process.env.SEARCH_DAYS_BACK, 10)
+    : 7,
+  deleteProcessedEmails: process.env.DELETE_PROCESSED_EMAILS === 'false' ? false : true
 };
 
 // Validate configuration
@@ -73,12 +78,20 @@ if (missingVars.length > 0) {
   process.exit(1);
 }
 
-// Initialize reminders file if it doesn't exist
-async function initRemindersFile() {
+// Initialize data files if they don't exist
+async function initDataFiles() {
+  // Initialize reminders file
   try {
     await fs.access(settings.remindersFile);
   } catch {
     await fs.writeFile(settings.remindersFile, '[]');
+  }
+  
+  // Initialize processed messages file
+  try {
+    await fs.access(settings.processedFile);
+  } catch {
+    await fs.writeFile(settings.processedFile, '[]');
   }
 }
 
@@ -109,9 +122,11 @@ async function main() {
     console.log('- Check Interval:', settings.checkInterval);
     console.log('- Debug Mode:', settings.debugMode);
     console.log('- Language:', settings.language);
+    console.log('- Search Window:', settings.searchDaysBack, 'days');
+    console.log('- Delete Processed Emails:', settings.deleteProcessedEmails);
 
-    console.log('Initializing reminders file...');
-    await initRemindersFile();
+    console.log('Initializing data files...');
+    await initDataFiles();
     
     console.log('Creating email reminder service...');
     const service = new EmailReminderService(emailConfig, settings);

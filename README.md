@@ -1,66 +1,143 @@
-# Wiedervorlage - Your Personal Email Reminder Assistant
+# 📧 Wiedervorlage - Email Reminders Made Simple
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-Never forget important things again! This is my personal email-based reminder service that lets you schedule reminders by sending emails to special addresses. It's simple, effective, and has been super helpful for me.
+**Turn any email into a reminder by BCCing yourself!** Just add `yourname+2d@gmail.com` to get reminded in 2 days. No apps, no complexity - just email.
 
-## Cool Features
+---
 
-- Monitors your email inbox for new reminders
-- Works with plus addressing supported by Gmail, Outlook, Yahoo, iCloud, and many others
-- Works with special addresses in To, CC, or BCC fields
-- Handles different time formats:
-  - Seconds: `remind+30s@yourdomain.com`
-  - Minutes: `remind+15m@yourdomain.com`
-  - Hours: `remind+1h@yourdomain.com`
-  - Days: `remind+7d@yourdomain.com`
-  - Weeks: `remind+2w@yourdomain.com`
-- Sends you a confirmation when it sets up your reminder
-- Keeps your reminders safe in a local file
-- Runs quietly in the background (and if it doesn't it sends you an email via BetterStack heartbeats; optional)
-- Speaks multiple languages (English, German, French)
-- Lets you add your own translations if needed
+## ✨ Why You'll Love This
 
-## What's Inside
-- [Getting Started](#getting-started)
-- [How to Use It](#how-to-use-it)
-- [Setting Things Up](#setting-things-up)
-- [License](#license)
+Imagine you're emailing a client and want to follow up in 3 days. Just BCC `yourname+3d@gmail.com` and you're done! The service will:
 
-## Getting Started
+1. **Confirm immediately** - "✅ Reminder set for 3 days"
+2. **Remind you on time** - Original email delivered back to your inbox
+3. **Work with any email** - Gmail, Outlook, Yahoo, iCloud, and more
 
-1. Clone the repository:
-```bash
-git clone https://github.com/mariusangelmann/Wiedervorlage.git
-cd Wiedervorlage
+## 🚀 Key Features
+
+- **📬 Works with your existing email** - No custom domain needed (Gmail, Outlook, etc.)
+- **⏰ Flexible timing** - Minutes, hours, days, or weeks (`+30m`, `+1h`, `+7d`, `+2w`)
+- **🌍 Multi-language** - 13 languages supported (English, German, French, Spanish, Italian, Portuguese, Dutch, Japanese, Chinese, Hindi, Arabic, Ukrainian, Korean) + add your own
+- **🔒 Privacy-first** - Runs on your own server, your emails stay private
+- **💪 Reliable** - Saves reminders locally, optional monitoring with BetterStack
+- **🎯 Smart** - Processes all emails (even if marked as read), tracks processed messages
+- **🧹 Clean inbox** - Automatically moves processed reminder emails to trash
+
+---
+
+## 🎯 Quick Start (5 minutes)
+
+### Using Gmail? Here's the fastest setup:
+
+1. **Clone & Install**
+   ```bash
+   git clone https://github.com/mariusangelmann/Wiedervorlage.git
+   cd Wiedervorlage
+   npm install
+   ```
+
+2. **Get Gmail App Password**
+   - Enable 2FA: https://myaccount.google.com/signinoptions/two-step-verification
+   - Generate password: https://myaccount.google.com/apppasswords
+   - Choose "Mail" → Copy the 16-character password
+
+3. **Configure** (create `.env` file)
+   ```bash
+   # Gmail users: just copy the template!
+   cp .env.gmail .env
+   # Then edit .env with your email and app password
+   ```
+   
+   Or manually create `.env`:
+   ```env
+   EMAIL_USERNAME=your-email@gmail.com
+   EMAIL_PASSWORD=xxxx xxxx xxxx xxxx  # Your app password
+   IMAP_SERVER=imap.gmail.com
+   SMTP_SERVER=smtp.gmail.com
+   BASE_DOMAIN=gmail.com
+   ```
+
+4. **Run**
+   ```bash
+   npm run build
+   npm start
+   ```
+
+5. **Test** - Send yourself an email and BCC `your-email+1h@gmail.com`
+
+> **Other providers?** Check the [full setup guide](#setting-things-up) below.
+
+---
+
+## 📖 How It Works
+
+### 💡 The Smart Way (Works with Gmail, Outlook, etc.)
+
+**No custom domain needed!** If you use Gmail, Outlook, or any provider with plus addressing:
+
+1. **Just BCC yourself with a plus address:**
+   ```
+   To: colleague@company.com
+   BCC: youremail+3d@gmail.com
+   ```
+
+2. **The service processes it and sends you:**
+   - ✅ Immediate confirmation that your reminder is set
+   - ⏰ Your original email back in 3 days
+   - 🗑️ Moves the activation email to trash (keeps inbox clean!)
+
+**That's it!** No need to set up a custom domain - use your existing email's plus addressing!
+
+### 🎯 Examples for Different Providers
+
+**Gmail users:**
+```
+BCC: yourname+1h@gmail.com     → Reminder in 1 hour
+BCC: yourname+2d@gmail.com     → Reminder in 2 days  
+BCC: yourname+1w@gmail.com     → Reminder in 1 week
 ```
 
-2. Install dependencies:
-```bash
-npm install
+**Outlook users:**
+```
+BCC: yourname+30m@outlook.com  → Reminder in 30 minutes
+BCC: yourname+7d@outlook.com   → Reminder in 7 days
 ```
 
-3. Create a `.env` file based on the `.env.example` template.
+### 📧 How the Service Works
 
-## How to Use It
+1. **You send an email** and include a reminder address (To, CC, or BCC)
+2. **Service catches it** when checking your inbox (reads all emails, not just unread!)
+3. **Saves the reminder** and sends you a confirmation
+4. **Delivers the reminder** at the specified time
 
-To start the development server:
-```bash
-npm run dev
-```
+### ⏱️ Time Formats
 
-To build and run the production version:
-```bash
-npm run build
-npm start
-```
+- **Seconds**: `+30s` (30 seconds)
+- **Minutes**: `+15m` (15 minutes)  
+- **Hours**: `+1h` (1 hour)
+- **Days**: `+7d` (7 days)
+- **Weeks**: `+2w` (2 weeks)
 
-## Setting Things Up
+---
+
+## ⚙️ Setting Things Up
 
 ### Password Authentication (Default)
 
 For traditional password authentication, configure these in your `.env` file:
 
+**Example with Gmail (using app password):**
+```env
+IMAP_SERVER=imap.gmail.com
+SMTP_SERVER=smtp.gmail.com
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=abcd efgh ijkl mnop  # Your 16-character app password
+BASE_DOMAIN=yourdomain.com
+AUTH_METHOD=password  # This is the default
+```
+
+**Example with other providers:**
 ```env
 IMAP_SERVER=imap.example.com
 SMTP_SERVER=smtp.example.com
@@ -68,6 +145,8 @@ EMAIL_USERNAME=your-email@example.com
 EMAIL_PASSWORD=your-password
 BASE_DOMAIN=example.com
 ```
+
+**Note:** Gmail, Outlook, and Yahoo require app passwords when 2FA is enabled. See the [provider configuration](#email-provider-configuration) section below for details.
 
 ### OAuth2 Authentication
 
@@ -107,19 +186,33 @@ SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587  # or 465 for SSL
 ```
 
-**Setup Guides:**
-- [Enable IMAP in Gmail](https://support.google.com/mail/answer/7126229)
-- [Create App Password (for password auth)](https://support.google.com/accounts/answer/185833)
-- [Set up OAuth2 for Gmail](https://developers.google.com/gmail/api/quickstart/python)
-- [Google OAuth2 Playground](https://developers.google.com/oauthplayground/)
+**🔐 Recommended: App Password Method (Simple & Quick)**
 
-**OAuth2 Setup:**
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select existing
-3. Enable Gmail API
-4. Create OAuth2 credentials (Desktop application type)
-5. Use scopes: `https://mail.google.com/`
-6. Use OAuth2 Playground to get refresh token
+Gmail requires either an app password or OAuth2. **App passwords are much easier to set up:**
+
+1. **Enable 2-Factor Authentication** (required for app passwords)
+   - Go to [Google Account Security](https://myaccount.google.com/security)
+   - Click on "2-Step Verification" and follow the setup
+
+2. **Generate App Password**
+   - Go to [App Passwords](https://myaccount.google.com/apppasswords)
+   - Select "Mail" as the app
+   - Select your device type
+   - Copy the generated 16-character password
+
+3. **Configure your .env file:**
+   ```env
+   EMAIL_USERNAME=your-email@gmail.com
+   EMAIL_PASSWORD=your-16-char-app-password  # Use app password here!
+   AUTH_METHOD=password  # Keep as password, not oauth2
+   ```
+
+**Important:** Use the app password instead of your regular Gmail password!
+
+**Alternative: OAuth2 Method (Advanced)**
+- [Set up OAuth2 Guide](https://developers.google.com/gmail/api/quickstart/python)
+- [Google OAuth2 Playground](https://developers.google.com/oauthplayground/)
+- Requires Google Cloud Console setup and is more complex
 
 #### Microsoft 365 / Outlook.com
 
@@ -217,7 +310,8 @@ SMTP_PORT=587  # or 465 for SSL
 
 ### Optional language settings
 ```env
-LANGUAGE=en # or 'de' for German / 'fr' for French
+# Supported languages: en, de, fr, es, it, pt, nl, ja, zh, hi, ar, uk, ko
+LANGUAGE=en # Default is English
 CUSTOM_TRANSLATIONS_PATH=path/to/custom-translations.json # optional
 ```
 
@@ -238,51 +332,102 @@ For development with auto-reload:
 npm run dev
 ```
 
-## Here's How It Works
+## How It Works
 
-The reminder address can be used in any recipient field (To, CC, or BCC), making it super flexible for different situations.
+### 💡 The Smart Way (Works with Gmail, Outlook, etc.)
 
-1. Send an email to a special reminder address:
-   - remind+1h@yourdomain.com (reminder in 1 hour)
-   - remind+2d@yourdomain.com (reminder in 2 days)
-   - remind+1w@yourdomain.com (reminder in 1 week)
+**No custom domain needed!** If you use Gmail, Outlook, or any provider with plus addressing:
 
-2. You'll receive a confirmation email with the planned delivery time.
+1. **Just BCC yourself with a plus address:**
+   ```
+   To: colleague@company.com
+   BCC: youremail+3d@gmail.com
+   ```
 
-3. At the specified time, you'll receive your original email back as a reminder.
+2. **The service processes it and sends you:**
+   - ✅ Immediate confirmation that your reminder is set
+   - ⏰ Your original email back in 3 days
+   - 🗑️ Moves the activation email to trash (keeps inbox clean!)
 
-## Here's What You Can Configure
+**That's it!** No need to set up a custom domain - use your existing email's plus addressing!
+
+### 🎯 Examples for Different Providers
+
+**Gmail users:**
+```
+BCC: yourname+1h@gmail.com     → Reminder in 1 hour
+BCC: yourname+2d@gmail.com     → Reminder in 2 days  
+BCC: yourname+1w@gmail.com     → Reminder in 1 week
+```
+
+**Outlook users:**
+```
+BCC: yourname+30m@outlook.com  → Reminder in 30 minutes
+BCC: yourname+7d@outlook.com   → Reminder in 7 days
+```
+
+### 📧 How the Service Works
+
+1. **You send an email** and include a reminder address (To, CC, or BCC)
+2. **Service catches it** when checking your inbox (reads all emails, not just unread!)
+3. **Saves the reminder** and sends you a confirmation
+4. **Delivers the reminder** at the specified time
+
+### ⏱️ Time Formats
+
+- **Seconds**: `+30s` (30 seconds)
+- **Minutes**: `+15m` (15 minutes)  
+- **Hours**: `+1h` (1 hour)
+- **Days**: `+7d` (7 days)
+- **Weeks**: `+2w` (2 weeks)
+
+## 🔧 Configuration Options
+
+### Essential Settings
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `EMAIL_USERNAME` | Your email address | Required |
+| `EMAIL_PASSWORD` | App password (not regular password!) | Required |
+| `IMAP_SERVER` | IMAP server (e.g., imap.gmail.com) | Required |
+| `SMTP_SERVER` | SMTP server (e.g., smtp.gmail.com) | Required |
+| `BASE_DOMAIN` | Domain for reminders | Required |
+
+### Optional Settings
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CHECK_INTERVAL` | How often to check (seconds) | 60 |
+| `SEARCH_DAYS_BACK` | Only check recent emails (days) | 7 |
+| `DELETE_PROCESSED_EMAILS` | Move activation emails to trash | true |
+| `LANGUAGE` | Interface language | en |
+| `DEBUG_MODE` | Show detailed logs | false |
+
+### Advanced Settings
+<details>
+<summary>Click to expand</summary>
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| IMAP_SERVER | IMAP server address | - |
-| IMAP_PORT | IMAP port | 993 |
-| SMTP_SERVER | SMTP server address | - |
-| SMTP_PORT | SMTP port | 587 |
-| EMAIL_USERNAME | Email address | - |
-| EMAIL_PASSWORD | Email password (for password auth) | - |
-| BASE_DOMAIN | Domain for reminder addresses | - |
-| AUTH_METHOD | Authentication method (password/oauth2) | password |
-| CHECK_INTERVAL | Check interval in seconds | 60 |
-| DEBUG_MODE | Enable debug mode | false |
-| MAX_RETRIES | Maximum connection attempts | 3 |
-| REMINDERS_FILE | Path to reminders file | reminders.json |
-| LANGUAGE | Interface language (en/fr) | en |
-| CUSTOM_TRANSLATIONS_PATH | Path to custom translations | - |
-| HEARTBEAT_ENABLED | Enable BetterStack monitoring | false |
-| HEARTBEAT_URL | BetterStack heartbeat URL | - |
-| HEARTBEAT_INTERVAL | Heartbeat interval in seconds | Same as CHECK_INTERVAL |
+| `IMAP_PORT` | IMAP port | 993 |
+| `SMTP_PORT` | SMTP port | 587 |
+| `AUTH_METHOD` | Authentication method | password |
+| `MAX_RETRIES` | Connection retry attempts | 3 |
+| `REMINDERS_FILE` | Where to save reminders | reminders.json |
+| `PROCESSED_FILE` | Tracks processed messages | processed.json |
+| `CUSTOM_TRANSLATIONS_PATH` | Custom language file | - |
+| `HEARTBEAT_ENABLED` | Enable monitoring | false |
+| `HEARTBEAT_URL` | BetterStack URL | - |
+| `HEARTBEAT_INTERVAL` | Heartbeat frequency | 60 |
 
-### OAuth2 Configuration (when AUTH_METHOD=oauth2)
+#### OAuth2 Settings (when AUTH_METHOD=oauth2)
+| Variable | Description |
+|----------|-------------|
+| `OAUTH2_CLIENT_ID` | OAuth2 client ID |
+| `OAUTH2_CLIENT_SECRET` | OAuth2 client secret |
+| `OAUTH2_REFRESH_TOKEN` | OAuth2 refresh token |
+| `OAUTH2_ACCESS_TOKEN` | Optional access token |
+| `OAUTH2_PROVIDER` | google/microsoft/yahoo |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| OAUTH2_CLIENT_ID | OAuth2 client ID | - |
-| OAUTH2_CLIENT_SECRET | OAuth2 client secret | - |
-| OAUTH2_REFRESH_TOKEN | OAuth2 refresh token | - |
-| OAUTH2_ACCESS_TOKEN | OAuth2 access token (optional) | - |
-| OAUTH2_ACCESS_URL | OAuth2 token endpoint (optional) | - |
-| OAUTH2_PROVIDER | Provider (google/microsoft/yahoo/custom) | - |
+</details>
 
 ## Want It in Another Language?
 
@@ -316,99 +461,71 @@ You can provide your own translations by creating a JSON file with the following
 }
 ```
 
-## What You'll Need
+## 📬 Email Provider Compatibility
 
-### Quick Email Provider Reference
+<details>
+<summary><strong>✅ All major providers support plus addressing!</strong> (Click for details)</summary>
 
-| Provider | IMAP Server | SMTP Server | Auth Methods | Setup Guide |
-|----------|-------------|-------------|--------------|-------------|
-| Gmail | imap.gmail.com | smtp.gmail.com | Password, OAuth2 | [Setup](#gmail--google-workspace) |
-| Outlook | outlook.office365.com | smtp-mail.outlook.com | Password, OAuth2 | [Setup](#microsoft-365--outlookcom) |
-| Yahoo | imap.mail.yahoo.com | smtp.mail.yahoo.com | Password, OAuth2 | [Setup](#yahoo-mail) |
-| iCloud | imap.mail.me.com | smtp.mail.me.com | App Password | [Setup](#icloud-mail) |
-| ProtonMail | 127.0.0.1:1143 | 127.0.0.1:1025 | Bridge Password | [Setup](#protonmail) |
-| FastMail | imap.fastmail.com | smtp.fastmail.com | App Password | [Setup](#fastmail) |
+### Quick Reference
 
-### Email Service Compatibility
+| Provider | Server Settings | Plus Addressing |
+|----------|----------------|-----------------|
+| **Gmail** | imap.gmail.com / smtp.gmail.com | ✅ Full support |
+| **Outlook** | outlook.office365.com / smtp-mail.outlook.com | ✅ Full support |
+| **Yahoo** | imap.mail.yahoo.com / smtp.mail.yahoo.com | ✅ Full support |
+| **iCloud** | imap.mail.me.com / smtp.mail.me.com | ✅ Full support |
+| **ProtonMail** | Via Bridge (127.0.0.1) | ✅ Full support |
+| **FastMail** | imap.fastmail.com / smtp.fastmail.com | ✅ Full support |
 
-**Services with Full Plus Addressing Support (remind+ANYTHING@yourdomain.com):**
+### What You Need
+- **Node.js 14+** to run the service
+- **Email with IMAP/SMTP** access
+- **Plus addressing** support (all major providers have this!)
 
-✅ **Gmail/Google Workspace**
-- Built-in plus addressing support since 2008
-- Works with OAuth2 authentication
-- No configuration needed - enabled by default
+</details>
 
-✅ **Microsoft 365/Outlook.com**
-- Plus addressing enabled by default (since April 2022)
-- Works with OAuth2 authentication
-- Can be disabled by admins if needed
+---
 
-✅ **Yahoo Mail**
-- Full plus addressing support
-- Works with OAuth2 authentication
-- Also offers "disposable email addresses" as an alternative
+## 🛠️ Troubleshooting
 
-✅ **iCloud Mail**
-- Supports plus addressing for all @icloud.com addresses
-- Works with custom domains in iCloud+
-- Automatic folder filtering based on plus tag
+<details>
+<summary><strong>Common Issues & Solutions</strong></summary>
 
-✅ **ProtonMail**
-- Unlimited plus aliases supported
-- Works with ProtonMail Bridge for IMAP/SMTP
-- Can reply from plus addresses
+### Authentication Failed?
+- **Gmail**: You need an app password, not your regular password!
+  - Enable 2FA first: https://myaccount.google.com/signinoptions/two-step-verification
+  - Generate app password: https://myaccount.google.com/apppasswords
+- **Outlook/Yahoo**: Same deal - use app passwords with 2FA
 
-✅ **FastMail**
-- Plus addressing enabled by default
-- Advanced features: automatic folder filing based on plus tag
-- Also supports subdomain addressing
+### Not receiving reminders?
+- Check your spam folder
+- Verify the email address in your .env matches exactly
+- Make sure `BASE_DOMAIN` is set correctly
+- Try `DEBUG_MODE=true` to see what's happening
 
-✅ **Self-Hosted Email Servers**
-- Postfix, Dovecot, and most modern mail servers support plus addressing
-- May require configuration (check your server's documentation)
+### Service keeps disconnecting?
+- Some email providers have rate limits
+- Try increasing `CHECK_INTERVAL` to 120 or higher
+- Check your email provider's IMAP connection limits
 
-**Important Notes:**
-1. Plus addressing (user+tag@domain.com) is an email standard that most modern providers support
-2. The reminder service requires your email provider to deliver emails sent to `remind+ANYTHING@yourdomain.com` to your main inbox
-3. Some websites may reject email addresses containing '+' characters during registration - this is a limitation of those websites, not the email service
+</details>
 
-### Technical Requirements
+---
 
-- Node.js 14 or higher
-- Email server with IMAP and SMTP access
-- Own domain for reminder addresses
+## 🎉 Contributing
 
-## When Things Go Wrong
+Found a bug? Have an idea? PRs welcome! 
 
-The service is pretty resilient:
+This is my personal project that I use daily, so I'm always interested in improvements that make it more useful.
 
-The service:
-- Automatically attempts to restore connection on errors
-- Waits 1 minute before retrying on errors
-- Logs errors for diagnosis
-- Stores reminders locally to prevent loss on restart
-- Reports service health via BetterStack heartbeat monitoring (if enabled)
-
-## Keeping an Eye on Things
-
-The service supports optional BetterStack heartbeat monitoring to track its operational status:
-
-1. Sign up for a BetterStack account and create a new heartbeat monitor
-2. Configure the monitoring in your .env file:
-   ```env
-   HEARTBEAT_ENABLED=true
-   HEARTBEAT_URL=https://uptime.betterstack.com/api/v1/heartbeat/YOUR_HEARTBEAT_ID
-   # Optional: custom interval (defaults to CHECK_INTERVAL)
-   # HEARTBEAT_INTERVAL=60
-   ```
-
-The heartbeat monitor reflects the actual health of the service:
-- Sends heartbeat only when email operations are successful
-- Automatically stops heartbeat on connection issues or errors
-- Resumes heartbeat when service recovers
-- Helps identify problems with email server connectivity
-- Monitors successful reminder processing
-
-## The Legal Stuff
+## 📄 License
 
 Apache 2.0 - see the [LICENSE](LICENSE) file for details.
+
+---
+
+<div align="center">
+Made with ☕ by <a href="https://github.com/mariusangelmann">Marius Angelmann</a>
+<br>
+<sub>Because everyone needs a reminder sometimes!</sub>
+</div>

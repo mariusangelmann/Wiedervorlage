@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "秒",
+    "minutes": "分",
+    "hours": "時間",
+    "days": "日",
+    "weeks": "週間"
+  },
+  "emails": {
+    "confirmationSubject": "リマインダーを作成しました",
+    "confirmationBody": "リマインダーが作成され、{timeStr}後に配信されます。\n配信予定時刻: {deliveryTime}",
+    "reminderSubject": "リマインダー: {subject}",
+    "reminderBody": "これはご要望のリマインダーです（間隔: {interval}）。\n\nリマインダー作成日時: {createdTime}\n\n元のメッセージ:\n{separator}\n{body}",
+    "unknownInterval": "不明な間隔"
+  },
+  "console": {
+    "serviceStart": "{interval}秒の確認間隔でリマインダーサービスを開始します",
+    "debugMode": "デバッグモード: {enabled}",
+    "mainLoopError": "メインループでエラーが発生しました:",
+    "heartbeatEnabled": "BetterStackハートビート監視が有効です (URL: {url}, 間隔: {interval}秒)"
+  }
+}

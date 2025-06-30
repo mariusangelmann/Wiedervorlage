@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "secondi",
+    "minutes": "minuti",
+    "hours": "ore",
+    "days": "giorni",
+    "weeks": "settimane"
+  },
+  "emails": {
+    "confirmationSubject": "Promemoria Creato",
+    "confirmationBody": "Il tuo promemoria è stato creato e sarà consegnato tra {timeStr}.\nConsegna programmata: {deliveryTime}",
+    "reminderSubject": "PROMEMORIA: {subject}",
+    "reminderBody": "Questo è il tuo promemoria richiesto (Intervallo: {interval}).\n\nPromemoria creato il: {createdTime}\n\nMessaggio Originale:\n{separator}\n{body}",
+    "unknownInterval": "Intervallo sconosciuto"
+  },
+  "console": {
+    "serviceStart": "Avvio del servizio promemoria con intervallo di controllo di {interval}s",
+    "debugMode": "Modalità debug: {enabled}",
+    "mainLoopError": "Errore nel ciclo principale:",
+    "heartbeatEnabled": "Monitoraggio heartbeat BetterStack abilitato (URL: {url}, Intervallo: {interval}s)"
+  }
+}

@@ -16,6 +16,7 @@ export class EmailReminderService {
   private heartbeatService?: HeartbeatService;
   private isRunning: boolean = false;
   private currentConnection: any = null;
+  private processedMessageIds: Set<string> = new Set();
 
   constructor(emailConfig: EmailConfig, settings: Settings) {
     console.log('Initializing EmailReminderService...');
@@ -165,34 +166,75 @@ export class EmailReminderService {
     await fs.writeFile(this.settings.remindersFile, JSON.stringify(reminders, null, 2));
   }
 
+  private async loadProcessedMessageIds(): Promise<void> {
+    try {
+      const content = await fs.readFile(this.settings.processedFile, 'utf-8');
+      const ids = JSON.parse(content);
+      this.processedMessageIds = new Set(ids);
+      if (this.settings.debugMode) {
+        console.log(`[DEBUG] Loaded ${this.processedMessageIds.size} processed message IDs`);
+      }
+    } catch (error) {
+      // File doesn't exist or is empty, start with empty set
+      this.processedMessageIds = new Set();
+    }
+  }
+
+  private async saveProcessedMessageId(messageId: string): Promise<void> {
+    this.processedMessageIds.add(messageId);
+    const ids = Array.from(this.processedMessageIds);
+    await fs.writeFile(this.settings.processedFile, JSON.stringify(ids, null, 2));
+  }
+
+  private isMessageProcessed(messageId: string): boolean {
+    return this.processedMessageIds.has(messageId);
+  }
+
   private async sendConfirmation(to: string, reminderTime: Date): Promise<void> {
-    const timeDiff = reminderTime.getTime() - new Date().getTime();
-    const timeStr = formatTimeString(timeDiff, this.translator);
+    try {
+      const timeDiff = reminderTime.getTime() - new Date().getTime();
+      const timeStr = formatTimeString(timeDiff, this.translator);
 
-    const textBody = this.translator.translate('emails.confirmationBody', {
-      timeStr,
-      deliveryTime: reminderTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US')
-    });
+      const textBody = this.translator.translate('emails.confirmationBody', {
+        timeStr,
+        deliveryTime: reminderTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US')
+      });
 
-    // Create a simple HTML version of the confirmation
-    const htmlBody = `
-      <div style="font-family: Arial, sans-serif; padding: 20px;">
-        <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; border-left: 4px solid #4caf50;">
-          <h2 style="color: #2e7d32; margin-top: 0;">✅ ${this.translator.translate('emails.confirmationSubject')}</h2>
-          <p style="font-size: 16px; line-height: 1.5; color: #333;">
-            ${textBody.replace(/\n/g, '<br>')}
-          </p>
+      // Create a simple HTML version of the confirmation
+      const htmlBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; border-left: 4px solid #4caf50;">
+            <h2 style="color: #2e7d32; margin-top: 0;">✅ ${this.translator.translate('emails.confirmationSubject')}</h2>
+            <p style="font-size: 16px; line-height: 1.5; color: #333;">
+              ${textBody.replace(/\n/g, '<br>')}
+            </p>
+          </div>
         </div>
-      </div>
-    `;
+      `;
 
-    await this.transporter.sendMail({
-      from: this.emailConfig.username,
-      to,
-      subject: this.translator.translate('emails.confirmationSubject'),
-      text: textBody,
-      html: htmlBody
-    });
+      await this.transporter.sendMail({
+        from: this.emailConfig.username,
+        to,
+        subject: this.translator.translate('emails.confirmationSubject'),
+        text: textBody,
+        html: htmlBody
+      });
+    } catch (error: any) {
+      console.error('\n❌ Failed to send confirmation email');
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      if (error.code === 'EAUTH' || error.response?.includes('Authentication')) {
+        console.error('SMTP Authentication failed. Check your email credentials.');
+        if (this.emailConfig.smtpServer.includes('gmail')) {
+          console.error('For Gmail, use an app password instead of your regular password.');
+        }
+      } else {
+        console.error(`Error: ${error.message || error}`);
+      }
+      
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      throw error;
+    }
   }
 
   private async sendReminder(reminder: Reminder): Promise<void> {
@@ -330,7 +372,7 @@ export class EmailReminderService {
 
       const fetchOptions = {
         bodies: [''],  // Empty string fetches the entire message
-        markSeen: true,
+        markSeen: false,  // Don't mark as seen since we process all emails
         struct: true
       };
 
@@ -338,16 +380,23 @@ export class EmailReminderService {
         console.log('[DEBUG] Using fetch options:', JSON.stringify(fetchOptions, null, 2));
       }
 
+      // Calculate date for search window
+      const daysBack = this.settings.searchDaysBack || 7;
+      const searchDate = new Date();
+      searchDate.setDate(searchDate.getDate() - daysBack);
+      const dateString = searchDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
       if (this.settings.debugMode) {
         console.log('[DEBUG] IMAP fetch options:', fetchOptions);
-        console.log('[DEBUG] Searching for unread messages');
+        console.log(`[DEBUG] Searching for messages from the last ${daysBack} days (since ${dateString})`);
       }
 
-      const searchCriteria = ['UNSEEN'];
+      // Search for all messages from the configured time window (not just unread)
+      const searchCriteria = [['SINCE', dateString]];
       const messages = await connection.search(searchCriteria, fetchOptions);
       
       if (this.settings.debugMode) {
-        console.log(`[DEBUG] Found ${messages.length} unread messages`);
+        console.log(`[DEBUG] Found ${messages.length} messages to check`);
       }
 
       for (const message of messages) {
@@ -371,6 +420,15 @@ export class EmailReminderService {
         }
 
         const { to, cc, bcc, from, subject, messageId, text, html } = parsedMessage;
+
+        // Check if we've already processed this message
+        const msgId = Array.isArray(messageId) ? messageId[0] : messageId || '';
+        if (msgId && this.isMessageProcessed(msgId)) {
+          if (this.settings.debugMode) {
+            console.log(`[DEBUG] Message ${msgId} already processed, skipping`);
+          }
+          continue;
+        }
 
         // Helper function to convert header values to strings
         const headerToString = (value: string | string[]): string => {
@@ -532,6 +590,30 @@ export class EmailReminderService {
             await this.saveReminder(reminder);
             await this.sendConfirmation(reminder.originalFrom, reminderInfo.reminderTime);
             
+            // Mark this message as processed
+            if (msgId) {
+              await this.saveProcessedMessageId(msgId);
+            }
+            
+            // Move the processed email to trash if configured
+            if (this.settings.deleteProcessedEmails) {
+              try {
+                if (this.settings.debugMode) {
+                  console.log('[DEBUG] Moving processed email to trash');
+                }
+                
+                // Add Deleted flag to the message
+                await connection.addFlags(message.attributes.uid, '\\Deleted');
+                
+                if (this.settings.debugMode) {
+                  console.log('[DEBUG] Email marked for deletion');
+                }
+              } catch (deleteError) {
+                console.error('Failed to move email to trash:', deleteError);
+                // Continue processing even if deletion fails
+              }
+            }
+            
             if (this.settings.debugMode) {
               console.log('[DEBUG] Reminder saved and confirmation sent');
             }
@@ -542,20 +624,76 @@ export class EmailReminderService {
           console.log('[DEBUG] Message not for reminder domain');
         }
       }
-    } catch (error) {
-      if (this.settings.debugMode) {
-        console.log('[DEBUG] Error in checkMailbox:', error);
-      }
+    } catch (error: any) {
       if (this.heartbeatService) {
         this.heartbeatService.setHealthStatus(false);
       }
-      console.error('Error in checkMailbox:', error);
+      
+      // Handle authentication errors specifically
+      if (error.textCode === 'AUTHENTICATIONFAILED' || error.source === 'authentication') {
+        console.error('\n❌ Authentication Failed');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        if (this.emailConfig.imapServer.includes('gmail.com')) {
+          console.error('Gmail requires special authentication:');
+          console.error('');
+          console.error('Option 1: Use an App Password (Recommended for password auth)');
+          console.error('  1. Enable 2-factor authentication on your Google account');
+          console.error('  2. Generate an app password: https://myaccount.google.com/apppasswords');
+          console.error('  3. Use the app password instead of your regular password');
+          console.error('');
+          console.error('Option 2: Use OAuth2 (Recommended for production)');
+          console.error('  1. Set AUTH_METHOD=oauth2 in your .env file');
+          console.error('  2. Follow the OAuth2 setup guide in the README');
+          console.error('');
+        } else if (this.emailConfig.imapServer.includes('outlook') || this.emailConfig.imapServer.includes('office365')) {
+          console.error('Outlook/Office365 authentication tips:');
+          console.error('  - If using 2FA, create an app password');
+          console.error('  - Or use OAuth2 authentication (see README)');
+          console.error('');
+        }
+        
+        console.error('Current configuration:');
+        console.error(`  - Email: ${this.emailConfig.username}`);
+        console.error(`  - Server: ${this.emailConfig.imapServer}`);
+        console.error(`  - Auth method: ${this.emailConfig.authMethod || 'password'}`);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        if (this.settings.debugMode) {
+          console.log('[DEBUG] Full error details:', error);
+        }
+      } else {
+        // Generic error handling
+        console.error('\n❌ Error checking mailbox');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error(`Error: ${error.message || error}`);
+        if (error.code) {
+          console.error(`Code: ${error.code}`);
+        }
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        if (this.settings.debugMode) {
+          console.error('[DEBUG] Full error stack:', error.stack || error);
+        }
+      }
     } finally {
       if (connection) {
         if (this.settings.debugMode) {
           console.log('[DEBUG] Closing IMAP connection');
         }
         try {
+          // Expunge deleted messages before closing connection
+          if (this.settings.deleteProcessedEmails) {
+            try {
+              await connection.imap.expunge();
+              if (this.settings.debugMode) {
+                console.log('[DEBUG] Expunged deleted messages');
+              }
+            } catch (expungeError) {
+              console.error('Error expunging deleted messages:', expungeError);
+            }
+          }
+          
           connection.end();
           if (this.currentConnection === connection) {
             this.currentConnection = null;
@@ -569,6 +707,7 @@ export class EmailReminderService {
 
   public async start(): Promise<void> {
     await this.translator.loadTranslations();
+    await this.loadProcessedMessageIds();
     
     console.log(this.translator.translate('console.serviceStart', { interval: this.settings.checkInterval }));
     console.log(this.translator.translate('console.debugMode', { enabled: this.settings.debugMode.toString() }));

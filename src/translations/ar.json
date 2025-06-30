@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "ثانية",
+    "minutes": "دقيقة",
+    "hours": "ساعة",
+    "days": "يوم",
+    "weeks": "أسبوع"
+  },
+  "emails": {
+    "confirmationSubject": "تم إنشاء التذكير",
+    "confirmationBody": "تم إنشاء التذكير الخاص بك وسيتم تسليمه خلال {timeStr}.\nموعد التسليم المجدول: {deliveryTime}",
+    "reminderSubject": "تذكير: {subject}",
+    "reminderBody": "هذا هو التذكير المطلوب (الفترة: {interval}).\n\nتم إنشاء التذكير في: {createdTime}\n\nالرسالة الأصلية:\n{separator}\n{body}",
+    "unknownInterval": "فترة غير معروفة"
+  },
+  "console": {
+    "serviceStart": "بدء خدمة التذكير مع فترة فحص {interval} ثانية",
+    "debugMode": "وضع التصحيح: {enabled}",
+    "mainLoopError": "خطأ في الحلقة الرئيسية:",
+    "heartbeatEnabled": "تم تمكين مراقبة نبضات BetterStack (URL: {url}، الفترة: {interval} ثانية)"
+  }
+}
