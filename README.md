@@ -7,6 +7,7 @@ Never forget important things again! This is my personal email-based reminder se
 ## Cool Features
 
 - Monitors your email inbox for new reminders
+- Works with plus addressing supported by Gmail, Outlook, Yahoo, iCloud, and many others
 - Works with special addresses in To, CC, or BCC fields
 - Handles different time formats:
   - Seconds: `remind+30s@yourdomain.com`
@@ -56,14 +57,163 @@ npm start
 
 ## Setting Things Up
 
-The following environment variables need to be configured in your `.env` file:
+### Password Authentication (Default)
 
-- `IMAP_HOST`: IMAP server host
-- `IMAP_USER`: IMAP username
-- `IMAP_PASSWORD`: IMAP password
-- `SMTP_HOST`: SMTP server host
-- `SMTP_USER`: SMTP username
-- `SMTP_PASSWORD`: SMTP password
+For traditional password authentication, configure these in your `.env` file:
+
+```env
+IMAP_SERVER=imap.example.com
+SMTP_SERVER=smtp.example.com
+EMAIL_USERNAME=your-email@example.com
+EMAIL_PASSWORD=your-password
+BASE_DOMAIN=example.com
+```
+
+### OAuth2 Authentication
+
+For OAuth2 authentication (Gmail, Outlook, Yahoo), you'll need:
+
+1. **Set up OAuth2 credentials** with your email provider (see [detailed provider configurations](#email-provider-configuration) below)
+
+2. **Configure OAuth2 in your `.env` file**:
+
+```env
+# Basic configuration
+IMAP_SERVER=imap.gmail.com
+SMTP_SERVER=smtp.gmail.com
+EMAIL_USERNAME=your-email@gmail.com
+BASE_DOMAIN=yourdomain.com
+AUTH_METHOD=oauth2
+
+# OAuth2 credentials
+OAUTH2_CLIENT_ID=your-client-id
+OAUTH2_CLIENT_SECRET=your-client-secret
+OAUTH2_REFRESH_TOKEN=your-refresh-token
+OAUTH2_PROVIDER=google  # or microsoft, yahoo
+
+# Optional: if you already have an access token
+OAUTH2_ACCESS_TOKEN=your-access-token
+```
+
+### Email Provider Configuration
+
+#### Gmail / Google Workspace
+
+**Server Settings:**
+```env
+IMAP_SERVER=imap.gmail.com
+IMAP_PORT=993
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587  # or 465 for SSL
+```
+
+**Setup Guides:**
+- [Enable IMAP in Gmail](https://support.google.com/mail/answer/7126229)
+- [Create App Password (for password auth)](https://support.google.com/accounts/answer/185833)
+- [Set up OAuth2 for Gmail](https://developers.google.com/gmail/api/quickstart/python)
+- [Google OAuth2 Playground](https://developers.google.com/oauthplayground/)
+
+**OAuth2 Setup:**
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create a new project or select existing
+3. Enable Gmail API
+4. Create OAuth2 credentials (Desktop application type)
+5. Use scopes: `https://mail.google.com/`
+6. Use OAuth2 Playground to get refresh token
+
+#### Microsoft 365 / Outlook.com
+
+**Server Settings:**
+```env
+IMAP_SERVER=outlook.office365.com
+IMAP_PORT=993
+SMTP_SERVER=smtp-mail.outlook.com
+SMTP_PORT=587
+```
+
+**Setup Guides:**
+- [Enable IMAP in Outlook.com](https://support.microsoft.com/en-us/office/pop-imap-and-smtp-settings-8361e398-8af4-4e97-b147-6c6c4ac95353)
+- [Create App Password (for password auth)](https://support.microsoft.com/en-us/account-billing/using-app-passwords-with-apps-that-don-t-support-two-step-verification-5896ed9b-4263-e681-128a-a6f2979a7944)
+- [Register OAuth2 App](https://docs.microsoft.com/en-us/azure/active-directory/develop/quickstart-register-app)
+
+**OAuth2 Setup:**
+1. Go to [Azure Portal](https://portal.azure.com/#blade/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)
+2. Register a new application
+3. Add permissions: `IMAP.AccessAsUser.All`, `SMTP.Send`
+4. Create client secret
+5. Use authorization code flow to get tokens
+
+#### Yahoo Mail
+
+**Server Settings:**
+```env
+IMAP_SERVER=imap.mail.yahoo.com
+IMAP_PORT=993
+SMTP_SERVER=smtp.mail.yahoo.com
+SMTP_PORT=587  # or 465 for SSL
+```
+
+**Setup Guides:**
+- [Yahoo IMAP Settings](https://help.yahoo.com/kb/SLN4724.html)
+- [Generate App Password](https://help.yahoo.com/kb/SLN15241.html)
+- [Yahoo Developer Apps](https://developer.yahoo.com/apps/)
+
+**OAuth2 Setup:**
+1. Go to [Yahoo Developer Dashboard](https://developer.yahoo.com/apps/)
+2. Create a new app
+3. Get OAuth2 credentials
+4. Use authorization flow to get refresh token
+
+#### iCloud Mail
+
+**Server Settings:**
+```env
+IMAP_SERVER=imap.mail.me.com
+IMAP_PORT=993
+SMTP_SERVER=smtp.mail.me.com
+SMTP_PORT=587
+```
+
+**Setup Guides:**
+- [iCloud Mail server settings](https://support.apple.com/en-us/102525)
+- [Generate app-specific password](https://support.apple.com/en-us/102654)
+- [Using iCloud+ Custom Email Domain](https://support.apple.com/en-us/102540)
+
+**Note:** iCloud requires app-specific passwords when 2FA is enabled. OAuth2 is not supported.
+
+#### ProtonMail
+
+**Server Settings (via ProtonMail Bridge):**
+```env
+IMAP_SERVER=127.0.0.1
+IMAP_PORT=1143
+SMTP_SERVER=127.0.0.1
+SMTP_PORT=1025
+```
+
+**Setup Guides:**
+- [ProtonMail Bridge Setup](https://proton.me/mail/bridge)
+- [Bridge Configuration Guide](https://proton.me/support/protonmail-bridge-install)
+- [IMAP/SMTP Settings](https://proton.me/support/protonmail-bridge-clients)
+
+**Note:** ProtonMail requires the Bridge application running locally. Use the credentials provided by Bridge.
+
+#### FastMail
+
+**Server Settings:**
+```env
+IMAP_SERVER=imap.fastmail.com
+IMAP_PORT=993
+SMTP_SERVER=smtp.fastmail.com
+SMTP_PORT=587  # or 465 for SSL
+```
+
+**Setup Guides:**
+- [FastMail Server Settings](https://www.fastmail.help/hc/en-us/articles/1500000278342)
+- [App Passwords](https://www.fastmail.help/hc/en-us/articles/360058752854)
+- [Plus Addressing Guide](https://www.fastmail.help/hc/en-us/articles/360060591053)
+
+**Note:** FastMail recommends using app-specific passwords for third-party apps.
 
 ### Optional language settings
 ```env
@@ -110,8 +260,9 @@ The reminder address can be used in any recipient field (To, CC, or BCC), making
 | SMTP_SERVER | SMTP server address | - |
 | SMTP_PORT | SMTP port | 587 |
 | EMAIL_USERNAME | Email address | - |
-| EMAIL_PASSWORD | Email password | - |
+| EMAIL_PASSWORD | Email password (for password auth) | - |
 | BASE_DOMAIN | Domain for reminder addresses | - |
+| AUTH_METHOD | Authentication method (password/oauth2) | password |
 | CHECK_INTERVAL | Check interval in seconds | 60 |
 | DEBUG_MODE | Enable debug mode | false |
 | MAX_RETRIES | Maximum connection attempts | 3 |
@@ -121,6 +272,17 @@ The reminder address can be used in any recipient field (To, CC, or BCC), making
 | HEARTBEAT_ENABLED | Enable BetterStack monitoring | false |
 | HEARTBEAT_URL | BetterStack heartbeat URL | - |
 | HEARTBEAT_INTERVAL | Heartbeat interval in seconds | Same as CHECK_INTERVAL |
+
+### OAuth2 Configuration (when AUTH_METHOD=oauth2)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| OAUTH2_CLIENT_ID | OAuth2 client ID | - |
+| OAUTH2_CLIENT_SECRET | OAuth2 client secret | - |
+| OAUTH2_REFRESH_TOKEN | OAuth2 refresh token | - |
+| OAUTH2_ACCESS_TOKEN | OAuth2 access token (optional) | - |
+| OAUTH2_ACCESS_URL | OAuth2 token endpoint (optional) | - |
+| OAUTH2_PROVIDER | Provider (google/microsoft/yahoo/custom) | - |
 
 ## Want It in Another Language?
 
@@ -156,22 +318,59 @@ You can provide your own translations by creating a JSON file with the following
 
 ## What You'll Need
 
+### Quick Email Provider Reference
+
+| Provider | IMAP Server | SMTP Server | Auth Methods | Setup Guide |
+|----------|-------------|-------------|--------------|-------------|
+| Gmail | imap.gmail.com | smtp.gmail.com | Password, OAuth2 | [Setup](#gmail--google-workspace) |
+| Outlook | outlook.office365.com | smtp-mail.outlook.com | Password, OAuth2 | [Setup](#microsoft-365--outlookcom) |
+| Yahoo | imap.mail.yahoo.com | smtp.mail.yahoo.com | Password, OAuth2 | [Setup](#yahoo-mail) |
+| iCloud | imap.mail.me.com | smtp.mail.me.com | App Password | [Setup](#icloud-mail) |
+| ProtonMail | 127.0.0.1:1143 | 127.0.0.1:1025 | Bridge Password | [Setup](#protonmail) |
+| FastMail | imap.fastmail.com | smtp.fastmail.com | App Password | [Setup](#fastmail) |
+
 ### Email Service Compatibility
 
-**Works Great With:**
-- Your own email server (Postfix, Dovecot)
-- Zoho Mail (using app password)
-- iCloud Mail (using app password)
-- FastMail
-- ProtonMail Bridge
-- Many business email providers that support basic authentication
+**Services with Full Plus Addressing Support (remind+ANYTHING@yourdomain.com):**
 
-**Won't Work With:**
-- Gmail, Google Workspace (they use OAuth)
-- Microsoft 365, Outlook.com (they use OAuth)
-- Yahoo Mail (uses OAuth)
+✅ **Gmail/Google Workspace**
+- Built-in plus addressing support since 2008
+- Works with OAuth2 authentication
+- No configuration needed - enabled by default
 
-**Important Note:** Your email server needs to be set up to deliver all emails to `remind+ANYTHING@yourdomain.com` to the same inbox. Some servers need special configuration for this and some outright don't support it.
+✅ **Microsoft 365/Outlook.com**
+- Plus addressing enabled by default (since April 2022)
+- Works with OAuth2 authentication
+- Can be disabled by admins if needed
+
+✅ **Yahoo Mail**
+- Full plus addressing support
+- Works with OAuth2 authentication
+- Also offers "disposable email addresses" as an alternative
+
+✅ **iCloud Mail**
+- Supports plus addressing for all @icloud.com addresses
+- Works with custom domains in iCloud+
+- Automatic folder filtering based on plus tag
+
+✅ **ProtonMail**
+- Unlimited plus aliases supported
+- Works with ProtonMail Bridge for IMAP/SMTP
+- Can reply from plus addresses
+
+✅ **FastMail**
+- Plus addressing enabled by default
+- Advanced features: automatic folder filing based on plus tag
+- Also supports subdomain addressing
+
+✅ **Self-Hosted Email Servers**
+- Postfix, Dovecot, and most modern mail servers support plus addressing
+- May require configuration (check your server's documentation)
+
+**Important Notes:**
+1. Plus addressing (user+tag@domain.com) is an email standard that most modern providers support
+2. The reminder service requires your email provider to deliver emails sent to `remind+ANYTHING@yourdomain.com` to your main inbox
+3. Some websites may reject email addresses containing '+' characters during registration - this is a limitation of those websites, not the email service
 
 ### Technical Requirements
 

@@ -13,9 +13,22 @@ const emailConfig: EmailConfig = {
   smtpServer: process.env.SMTP_SERVER || '',
   smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
   username: process.env.EMAIL_USERNAME || '',
-  password: process.env.EMAIL_PASSWORD || '',
-  baseDomain: process.env.BASE_DOMAIN || ''
+  password: process.env.EMAIL_PASSWORD,
+  baseDomain: process.env.BASE_DOMAIN || '',
+  authMethod: process.env.AUTH_METHOD as 'password' | 'oauth2' || 'password',
 };
+
+// Add OAuth2 configuration if using OAuth2
+if (process.env.AUTH_METHOD === 'oauth2') {
+  emailConfig.oauth2 = {
+    clientId: process.env.OAUTH2_CLIENT_ID || '',
+    clientSecret: process.env.OAUTH2_CLIENT_SECRET || '',
+    refreshToken: process.env.OAUTH2_REFRESH_TOKEN || '',
+    accessToken: process.env.OAUTH2_ACCESS_TOKEN,
+    accessUrl: process.env.OAUTH2_ACCESS_URL,
+    provider: process.env.OAUTH2_PROVIDER as 'google' | 'microsoft' | 'yahoo' | 'custom'
+  };
+}
 
 // Service settings
 const settings: Settings = {
@@ -39,13 +52,24 @@ const requiredEnvVars = [
   'IMAP_SERVER',
   'SMTP_SERVER',
   'EMAIL_USERNAME',
-  'EMAIL_PASSWORD',
   'BASE_DOMAIN'
 ];
+
+// Add auth-specific requirements
+if (process.env.AUTH_METHOD === 'oauth2') {
+  requiredEnvVars.push(
+    'OAUTH2_CLIENT_ID',
+    'OAUTH2_CLIENT_SECRET',
+    'OAUTH2_REFRESH_TOKEN'
+  );
+} else {
+  requiredEnvVars.push('EMAIL_PASSWORD');
+}
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
   console.error('Missing required environment variables:', missingVars.join(', '));
+  console.error(`Auth method: ${process.env.AUTH_METHOD || 'password'}`);
   process.exit(1);
 }
 

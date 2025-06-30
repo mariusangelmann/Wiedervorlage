@@ -16,8 +16,21 @@ export interface EmailConfig {
   smtpServer: string;
   smtpPort: number;
   username: string;
-  password: string;
+  password?: string;
   baseDomain: string;
+  // OAuth2 configuration
+  authMethod?: 'password' | 'oauth2';
+  oauth2?: OAuth2Config;
+}
+
+export interface OAuth2Config {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  accessToken?: string;
+  accessUrl?: string;
+  // Provider-specific settings
+  provider?: 'google' | 'microsoft' | 'yahoo' | 'custom';
 }
 
 export interface HeartbeatConfig {

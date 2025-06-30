@@ -33,15 +33,32 @@ export class EmailReminderService {
 
     console.log('Setting up SMTP transporter...');
     try {
-      this.transporter = nodemailer.createTransport({
+      const smtpConfig: any = {
         host: emailConfig.smtpServer,
         port: emailConfig.smtpPort,
         secure: emailConfig.smtpPort === 465,
-        auth: {
+      };
+
+      if (emailConfig.authMethod === 'oauth2' && emailConfig.oauth2) {
+        console.log('Using OAuth2 authentication for SMTP');
+        smtpConfig.auth = {
+          type: 'OAuth2',
+          user: emailConfig.username,
+          clientId: emailConfig.oauth2.clientId,
+          clientSecret: emailConfig.oauth2.clientSecret,
+          refreshToken: emailConfig.oauth2.refreshToken,
+          accessToken: emailConfig.oauth2.accessToken,
+          accessUrl: emailConfig.oauth2.accessUrl,
+        };
+      } else {
+        console.log('Using password authentication for SMTP');
+        smtpConfig.auth = {
           user: emailConfig.username,
           pass: emailConfig.password,
-        },
-      });
+        };
+      }
+
+      this.transporter = nodemailer.createTransport(smtpConfig);
       console.log('SMTP transporter created successfully');
     } catch (error) {
       console.error('Error creating SMTP transporter:', error);
@@ -50,10 +67,24 @@ export class EmailReminderService {
 
     console.log('Setting up IMAP config...');
     try {
+      const imapAuth: any = {};
+      
+      if (this.emailConfig.authMethod === 'oauth2' && this.emailConfig.oauth2) {
+        console.log('Using OAuth2 authentication for IMAP');
+        // For OAuth2, we need to generate the XOAUTH2 string
+        imapAuth.xoauth2 = this.generateXOAuth2String(
+          this.emailConfig.username,
+          this.emailConfig.oauth2.accessToken || this.emailConfig.oauth2.refreshToken
+        );
+      } else {
+        console.log('Using password authentication for IMAP');
+        imapAuth.user = this.emailConfig.username;
+        imapAuth.password = this.emailConfig.password;
+      }
+
       this.imapConfig = {
         imap: {
-          user: this.emailConfig.username,
-          password: this.emailConfig.password,
+          ...imapAuth,
           host: this.emailConfig.imapServer,
           port: this.emailConfig.imapPort,
           tls: true,
@@ -69,6 +100,17 @@ export class EmailReminderService {
     }
     
     console.log('EmailReminderService initialized successfully');
+  }
+
+  private generateXOAuth2String(username: string, accessToken: string): string {
+    const authString = [
+      `user=${username}`,
+      `auth=Bearer ${accessToken}`,
+      '',
+      ''
+    ].join('\x01');
+    
+    return Buffer.from(authString).toString('base64');
   }
 
   private async parseReminderAddress(address: string): Promise<{ reminderTime: Date; unit: string; amount: number } | null> {
