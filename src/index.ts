@@ -73,15 +73,10 @@ async function main() {
 
     process.on('uncaughtException', (error) => {
       console.error('Uncaught Exception:', error);
+      if (!isShuttingDown) {
+        process.exit(1);
+      }
     });
-
-    process.on('exit', (code) => {
-      console.error(`Process exit with code: ${code}`);
-      console.error(new Error().stack); // Log stack trace to see where exit is called
-    });
-
-    // Prevent the process from exiting immediately
-    process.stdin.resume();
 
     // Log environment configuration
     console.log('Environment configuration:');
@@ -103,11 +98,9 @@ async function main() {
       isShuttingDown = true;
       
       console.log(`\nReceived ${signal}. Shutting down gracefully...`);
-      service.stop();
+      await service.stop();
       
-      // Give some time for cleanup
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      process.exit(0);
+      console.log('Shutdown complete');
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));

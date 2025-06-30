@@ -14,6 +14,8 @@ export class EmailReminderService {
   private settings: Settings;
   private translator: TranslationService;
   private heartbeatService?: HeartbeatService;
+  private isRunning: boolean = false;
+  private currentConnection: any = null;
 
   constructor(emailConfig: EmailConfig, settings: Settings) {
     console.log('Initializing EmailReminderService...');
@@ -125,14 +127,29 @@ export class EmailReminderService {
     const timeDiff = reminderTime.getTime() - new Date().getTime();
     const timeStr = formatTimeString(timeDiff, this.translator);
 
+    const textBody = this.translator.translate('emails.confirmationBody', {
+      timeStr,
+      deliveryTime: reminderTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US')
+    });
+
+    // Create a simple HTML version of the confirmation
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; border-left: 4px solid #4caf50;">
+          <h2 style="color: #2e7d32; margin-top: 0;">✅ ${this.translator.translate('emails.confirmationSubject')}</h2>
+          <p style="font-size: 16px; line-height: 1.5; color: #333;">
+            ${textBody.replace(/\n/g, '<br>')}
+          </p>
+        </div>
+      </div>
+    `;
+
     await this.transporter.sendMail({
       from: this.emailConfig.username,
       to,
       subject: this.translator.translate('emails.confirmationSubject'),
-      text: this.translator.translate('emails.confirmationBody', {
-        timeStr,
-        deliveryTime: reminderTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US')
-      })
+      text: textBody,
+      html: htmlBody
     });
   }
 
@@ -147,12 +164,34 @@ export class EmailReminderService {
         body: reminder.body
       });
 
+      // Create HTML body if the original email had HTML content
+      let htmlBody: string | undefined;
+      if (reminder.html) {
+        // Extract the header part from the text body (everything before the separator)
+        const textLines = textBody.split('\n');
+        const separatorIndex = textLines.findIndex(line => line.includes('='.repeat(50)));
+        const headerText = textLines.slice(0, separatorIndex).join('<br>');
+        
+        // Wrap the reminder information and original HTML content in a proper HTML structure
+        htmlBody = `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              ${headerText}
+            </div>
+            <hr style="border: 1px solid #ccc; margin: 20px 0;">
+            <div style="padding: 10px;">
+              ${reminder.html}
+            </div>
+          </div>
+        `;
+      }
+
       await this.transporter.sendMail({
         from: this.emailConfig.username,
         to: reminder.originalFrom,
         subject: this.translator.translate('emails.reminderSubject', { subject: reminder.subject }),
         text: textBody,
-        html: reminder.html || textBody,
+        html: htmlBody,
         references: reminder.references
       });
     }
@@ -222,9 +261,16 @@ export class EmailReminderService {
 
       const imapSimple = require('imap-simple');
       connection = await imapSimple.connect(imapConfig);
+      this.currentConnection = connection;
       
       if (this.settings.debugMode) {
         console.log('[DEBUG] IMAP connection established successfully');
+      }
+      
+      // Check if we're shutting down
+      if (!this.isRunning) {
+        console.log('Shutdown requested, aborting mailbox check');
+        return;
       }
       
       if (this.settings.debugMode) {
@@ -241,14 +287,7 @@ export class EmailReminderService {
       }
 
       const fetchOptions = {
-        bodies: [
-          // Get specific headers we need
-          'HEADER.FIELDS (FROM TO CC BCC DELIVERED-TO X-ORIGINAL-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)',
-          // Get the message body
-          'TEXT',
-          // Get all headers for complete parsing
-          'HEADER'
-        ],
+        bodies: [''],  // Empty string fetches the entire message
         markSeen: true,
         struct: true
       };
@@ -274,16 +313,16 @@ export class EmailReminderService {
           console.log('[DEBUG] Processing message:', message.attributes?.uid);
         }
 
-        // Get the entire message as a single string
-        const allHeadersPart = message.parts.find(p => p.which === 'HEADER');
-        if (!allHeadersPart) {
-          console.log('[DEBUG] Missing required message parts');
+        // Get the entire message
+        const allParts = message.parts.filter((p: any) => p.which === '');
+        if (!allParts || allParts.length === 0) {
+          console.log('[DEBUG] Missing message body');
           continue;
         }
-        const allHeaders = allHeadersPart.body as string;
+        const fullMessage = allParts[0].body as string;
 
         // Use mailparser to parse the entire message
-        const parsedMessage = await simpleParser(allHeaders);
+        const parsedMessage = await simpleParser(fullMessage);
 
         if (this.settings.debugMode) {
           console.log('[DEBUG] Parsed message:', parsedMessage);
@@ -296,6 +335,16 @@ export class EmailReminderService {
           return Array.isArray(value) ? value.join(', ') : value;
         };
         
+        // Helper function to convert AddressObject to string
+        const addressToString = (addr: Mailparser.AddressObject | Mailparser.AddressObject[] | string | undefined): string => {
+          if (!addr) return '';
+          if (typeof addr === 'string') return addr;
+          if (Array.isArray(addr)) {
+            return addr.map(a => a.text || '').join(', ');
+          }
+          return addr.text || '';
+        };
+        
         // Manually extract header lines we need
         const headerLines = [
           { key: 'delivered-to', line: headerToString(parsedMessage.headerLines?.find(h => h.key === 'delivered-to')?.line || '') },
@@ -304,10 +353,10 @@ export class EmailReminderService {
         
         // Parse headers while maintaining original structure
         const parsed = {
-          to: to || '',
-          cc: cc || '',
-          bcc: bcc || '',
-          from: from || '',
+          to: to,
+          cc: cc,
+          bcc: bcc,
+          from: from,
           subject: subject || '',
           messageId: messageId || '',
           text: text || '',
@@ -320,7 +369,7 @@ export class EmailReminderService {
             to: parsed.to,
             cc: parsed.cc,
             bcc: parsed.bcc,
-            from: headerToString(parsed.from?.value || ''),
+            from: addressToString(parsed.from),
             subject: parsed.subject,
             deliveredTo: parsed.headerLines.find(h => h.key === 'delivered-to')?.line,
             originalTo: parsed.headerLines.find(h => h.key === 'x-original-to')?.line
@@ -328,16 +377,16 @@ export class EmailReminderService {
         }
 
         // Convert header values to strings
-        const toStr = Array.isArray(parsed.to) ? parsed.to.join(', ') : parsed.to;
-        const ccStr = Array.isArray(parsed.cc) ? parsed.cc.join(', ') : parsed.cc;
-        const bccStr = Array.isArray(parsed.bcc) ? parsed.bcc.join(', ') : parsed.bcc;
+        const toStr = addressToString(parsed.to);
+        const ccStr = addressToString(parsed.cc);
+        const bccStr = addressToString(parsed.bcc);
 
         // Get all possible recipient addresses
         const allRecipients = [
           // Regular recipients
-          ...toStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
-          ...ccStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
-          ...bccStr.split(',').map((addr: string) => ({ text: addr.text.trim() })),
+          ...toStr.split(',').map((addr: string) => ({ text: addr.trim() })),
+          ...ccStr.split(',').map((addr: string) => ({ text: addr.trim() })),
+          ...bccStr.split(',').map((addr: string) => ({ text: addr.trim() })),
           // Additional headers that might contain the reminder address
           // Extract addresses from additional headers, handling potential multiple addresses
           ...parsed.headerLines
@@ -345,9 +394,11 @@ export class EmailReminderService {
             .map(h => h.line)
             .flatMap(line => line.split(','))
             .map(addr => {
+              // Remove header prefix (e.g., "Delivered-To: " or "X-Original-To: ")
+              const cleanAddr = addr.replace(/^[^:]+:\s*/, '').trim();
               // Extract email address from possible "Name <email>" format
-              const match = addr.trim().match(/<([^>]+)>/);
-              const email = match ? match[1] : addr.trim();
+              const match = cleanAddr.match(/<([^>]+)>/);
+              const email = match ? match[1] : cleanAddr;
               return { text: email };
             })
         ].filter(addr => addr.text && addr.text.includes('@')); // Remove empty and invalid addresses
@@ -368,38 +419,43 @@ export class EmailReminderService {
           }
           const address = addr?.text?.toLowerCase() || '';
           if (this.settings.debugMode) {
+            const localPart = address.split('@')[0];
+            const hasTimePattern = /\+\d+[smhdw]/.test(localPart);
             console.log('[DEBUG] Checking address format:', {
               address,
               hasBaseDomain: address.includes(this.emailConfig.baseDomain.toLowerCase()),
-              hasRemindPrefix: address.includes('remind+')
+              hasTimePattern
             });
           }
           const domain = this.emailConfig.baseDomain.toLowerCase();
+        // Check if it's for our domain and has a time pattern (e.g., +20s, +5m, +2h)
+        const localPart = address.split('@')[0];
+        const hasTimePattern = /\+\d+[smhdw]/.test(localPart);
         return address && 
                (address.endsWith(`@${domain}`) || address.endsWith(`@${domain}>`)) && 
-               address.includes('remind+');
+               hasTimePattern;
         });
         
         if (this.settings.debugMode && reminderAddress) {
           console.log('[DEBUG] Found reminder address:', reminderAddress);
         }
         
-        const to = reminderAddress?.text || '';
+        const reminderTo = reminderAddress?.text || '';
 
         if (this.settings.debugMode) {
           console.log('[DEBUG] Message details:', {
-            to,
-            from: headerToString(parsed.from),
+            to: reminderTo,
+            from: addressToString(parsed.from),
             subject: parsed.subject
           });
         }
 
-        if (to.includes(this.emailConfig.baseDomain)) {
+        if (reminderTo.includes(this.emailConfig.baseDomain)) {
           if (this.settings.debugMode) {
             console.log('[DEBUG] Found matching domain in recipient');
           }
 
-          const reminderInfo = await this.parseReminderAddress(to);
+          const reminderInfo = await this.parseReminderAddress(reminderTo);
           if (reminderInfo) {
             if (this.settings.debugMode) {
               console.log('[DEBUG] Valid reminder address found:', {
@@ -410,7 +466,7 @@ export class EmailReminderService {
             }
 
             // Convert from header to string
-            const fromStr = Array.isArray(parsed.from) ? parsed.from.join(', ') : parsed.from;
+            const fromStr = addressToString(parsed.from);
             // Extract email address from possible "Name <email>" format
             const match = fromStr.match(/(?<=<)([^>]+)(?=>)|([^\s@]+@[^\s@]+\.[^\s@]+)/);
             const fromAddress = match ? (match[1] || match[2]) : fromStr.trim();
@@ -459,6 +515,9 @@ export class EmailReminderService {
         }
         try {
           connection.end();
+          if (this.currentConnection === connection) {
+            this.currentConnection = null;
+          }
         } catch (err) {
           console.error('Error closing IMAP connection:', err);
         }
@@ -481,7 +540,8 @@ export class EmailReminderService {
       }));
     }
 
-    while (true) {
+    this.isRunning = true;
+    while (this.isRunning) {
       try {
         if (this.settings.debugMode) {
           console.log('[DEBUG] Starting new check cycle');
@@ -513,9 +573,35 @@ export class EmailReminderService {
     }
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
+    console.log('Stopping EmailReminderService...');
+    this.isRunning = false;
+    
     if (this.heartbeatService) {
       this.heartbeatService.stop();
     }
+    
+    // Close IMAP connection if open
+    if (this.currentConnection) {
+      try {
+        console.log('Closing IMAP connection...');
+        await this.currentConnection.end();
+        this.currentConnection = null;
+      } catch (error) {
+        console.error('Error closing IMAP connection during shutdown:', error);
+      }
+    }
+    
+    // Close SMTP transporter
+    if (this.transporter) {
+      try {
+        console.log('Closing SMTP transporter...');
+        this.transporter.close();
+      } catch (error) {
+        console.error('Error closing SMTP transporter:', error);
+      }
+    }
+    
+    console.log('EmailReminderService stopped');
   }
 }
