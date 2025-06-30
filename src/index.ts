@@ -13,9 +13,22 @@ const emailConfig: EmailConfig = {
   smtpServer: process.env.SMTP_SERVER || '',
   smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
   username: process.env.EMAIL_USERNAME || '',
-  password: process.env.EMAIL_PASSWORD || '',
-  baseDomain: process.env.BASE_DOMAIN || ''
+  password: process.env.EMAIL_PASSWORD,
+  baseDomain: process.env.BASE_DOMAIN || '',
+  authMethod: process.env.AUTH_METHOD as 'password' | 'oauth2' || 'password',
 };
+
+// Add OAuth2 configuration if using OAuth2
+if (process.env.AUTH_METHOD === 'oauth2') {
+  emailConfig.oauth2 = {
+    clientId: process.env.OAUTH2_CLIENT_ID || '',
+    clientSecret: process.env.OAUTH2_CLIENT_SECRET || '',
+    refreshToken: process.env.OAUTH2_REFRESH_TOKEN || '',
+    accessToken: process.env.OAUTH2_ACCESS_TOKEN,
+    accessUrl: process.env.OAUTH2_ACCESS_URL,
+    provider: process.env.OAUTH2_PROVIDER as 'google' | 'microsoft' | 'yahoo' | 'custom'
+  };
+}
 
 // Service settings
 const settings: Settings = {
@@ -23,6 +36,7 @@ const settings: Settings = {
   debugMode: process.env.DEBUG_MODE === 'true',
   maxRetries: parseInt(process.env.MAX_RETRIES || '3', 10),
   remindersFile: process.env.REMINDERS_FILE || 'reminders.json',
+  processedFile: process.env.PROCESSED_FILE || 'processed.json',
   language: process.env.LANGUAGE || 'en',
   customTranslationsPath: process.env.CUSTOM_TRANSLATIONS_PATH,
   heartbeat: {
@@ -31,7 +45,11 @@ const settings: Settings = {
     interval: process.env.HEARTBEAT_INTERVAL 
       ? parseInt(process.env.HEARTBEAT_INTERVAL, 10)
       : undefined
-  }
+  },
+  searchDaysBack: process.env.SEARCH_DAYS_BACK 
+    ? parseInt(process.env.SEARCH_DAYS_BACK, 10)
+    : 7,
+  deleteProcessedEmails: process.env.DELETE_PROCESSED_EMAILS === 'false' ? false : true
 };
 
 // Validate configuration
@@ -39,22 +57,41 @@ const requiredEnvVars = [
   'IMAP_SERVER',
   'SMTP_SERVER',
   'EMAIL_USERNAME',
-  'EMAIL_PASSWORD',
   'BASE_DOMAIN'
 ];
+
+// Add auth-specific requirements
+if (process.env.AUTH_METHOD === 'oauth2') {
+  requiredEnvVars.push(
+    'OAUTH2_CLIENT_ID',
+    'OAUTH2_CLIENT_SECRET',
+    'OAUTH2_REFRESH_TOKEN'
+  );
+} else {
+  requiredEnvVars.push('EMAIL_PASSWORD');
+}
 
 const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingVars.length > 0) {
   console.error('Missing required environment variables:', missingVars.join(', '));
+  console.error(`Auth method: ${process.env.AUTH_METHOD || 'password'}`);
   process.exit(1);
 }
 
-// Initialize reminders file if it doesn't exist
-async function initRemindersFile() {
+// Initialize data files if they don't exist
+async function initDataFiles() {
+  // Initialize reminders file
   try {
     await fs.access(settings.remindersFile);
   } catch {
     await fs.writeFile(settings.remindersFile, '[]');
+  }
+  
+  // Initialize processed messages file
+  try {
+    await fs.access(settings.processedFile);
+  } catch {
+    await fs.writeFile(settings.processedFile, '[]');
   }
 }
 
@@ -73,15 +110,10 @@ async function main() {
 
     process.on('uncaughtException', (error) => {
       console.error('Uncaught Exception:', error);
+      if (!isShuttingDown) {
+        process.exit(1);
+      }
     });
-
-    process.on('exit', (code) => {
-      console.error(`Process exit with code: ${code}`);
-      console.error(new Error().stack); // Log stack trace to see where exit is called
-    });
-
-    // Prevent the process from exiting immediately
-    process.stdin.resume();
 
     // Log environment configuration
     console.log('Environment configuration:');
@@ -90,9 +122,11 @@ async function main() {
     console.log('- Check Interval:', settings.checkInterval);
     console.log('- Debug Mode:', settings.debugMode);
     console.log('- Language:', settings.language);
+    console.log('- Search Window:', settings.searchDaysBack, 'days');
+    console.log('- Delete Processed Emails:', settings.deleteProcessedEmails);
 
-    console.log('Initializing reminders file...');
-    await initRemindersFile();
+    console.log('Initializing data files...');
+    await initDataFiles();
     
     console.log('Creating email reminder service...');
     const service = new EmailReminderService(emailConfig, settings);
@@ -103,11 +137,9 @@ async function main() {
       isShuttingDown = true;
       
       console.log(`\nReceived ${signal}. Shutting down gracefully...`);
-      service.stop();
+      await service.stop();
       
-      // Give some time for cleanup
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      process.exit(0);
+      console.log('Shutdown complete');
     };
 
     process.on('SIGINT', () => shutdown('SIGINT'));

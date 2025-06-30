@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "秒",
+    "minutes": "分钟",
+    "hours": "小时",
+    "days": "天",
+    "weeks": "周"
+  },
+  "emails": {
+    "confirmationSubject": "提醒已创建",
+    "confirmationBody": "您的提醒已创建，将在{timeStr}后发送。\n计划发送时间：{deliveryTime}",
+    "reminderSubject": "提醒：{subject}",
+    "reminderBody": "这是您请求的提醒（间隔：{interval}）。\n\n提醒创建于：{createdTime}\n\n原始消息：\n{separator}\n{body}",
+    "unknownInterval": "未知间隔"
+  },
+  "console": {
+    "serviceStart": "启动提醒服务，检查间隔为{interval}秒",
+    "debugMode": "调试模式：{enabled}",
+    "mainLoopError": "主循环错误：",
+    "heartbeatEnabled": "BetterStack心跳监控已启用（URL：{url}，间隔：{interval}秒）"
+  }
+}

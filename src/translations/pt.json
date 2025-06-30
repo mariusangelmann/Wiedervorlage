@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "segundos",
+    "minutes": "minutos",
+    "hours": "horas",
+    "days": "dias",
+    "weeks": "semanas"
+  },
+  "emails": {
+    "confirmationSubject": "Lembrete Criado",
+    "confirmationBody": "Seu lembrete foi criado e será entregue em {timeStr}.\nEntrega programada: {deliveryTime}",
+    "reminderSubject": "LEMBRETE: {subject}",
+    "reminderBody": "Este é o seu lembrete solicitado (Intervalo: {interval}).\n\nLembrete criado em: {createdTime}\n\nMensagem Original:\n{separator}\n{body}",
+    "unknownInterval": "Intervalo desconhecido"
+  },
+  "console": {
+    "serviceStart": "Iniciando serviço de lembretes com intervalo de verificação de {interval}s",
+    "debugMode": "Modo de depuração: {enabled}",
+    "mainLoopError": "Erro no loop principal:",
+    "heartbeatEnabled": "Monitoramento heartbeat BetterStack ativado (URL: {url}, Intervalo: {interval}s)"
+  }
+}

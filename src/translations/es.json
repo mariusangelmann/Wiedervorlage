@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "segundos",
+    "minutes": "minutos",
+    "hours": "horas",
+    "days": "días",
+    "weeks": "semanas"
+  },
+  "emails": {
+    "confirmationSubject": "Recordatorio Creado",
+    "confirmationBody": "Su recordatorio ha sido creado y será entregado en {timeStr}.\nEntrega programada: {deliveryTime}",
+    "reminderSubject": "RECORDATORIO: {subject}",
+    "reminderBody": "Este es su recordatorio solicitado (Intervalo: {interval}).\n\nRecordatorio creado el: {createdTime}\n\nMensaje Original:\n{separator}\n{body}",
+    "unknownInterval": "Intervalo desconocido"
+  },
+  "console": {
+    "serviceStart": "Iniciando servicio de recordatorios con intervalo de verificación de {interval}s",
+    "debugMode": "Modo de depuración: {enabled}",
+    "mainLoopError": "Error en el bucle principal:",
+    "heartbeatEnabled": "Monitoreo de heartbeat BetterStack habilitado (URL: {url}, Intervalo: {interval}s)"
+  }
+}

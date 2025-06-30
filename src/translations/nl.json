@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "seconden",
+    "minutes": "minuten",
+    "hours": "uren",
+    "days": "dagen",
+    "weeks": "weken"
+  },
+  "emails": {
+    "confirmationSubject": "Herinnering Aangemaakt",
+    "confirmationBody": "Uw herinnering is aangemaakt en wordt bezorgd over {timeStr}.\nGeplande levering: {deliveryTime}",
+    "reminderSubject": "HERINNERING: {subject}",
+    "reminderBody": "Dit is uw gevraagde herinnering (Interval: {interval}).\n\nHerinnering aangemaakt op: {createdTime}\n\nOrigineel Bericht:\n{separator}\n{body}",
+    "unknownInterval": "Onbekend interval"
+  },
+  "console": {
+    "serviceStart": "Herinneringsservice starten met {interval}s controle-interval",
+    "debugMode": "Debug modus: {enabled}",
+    "mainLoopError": "Fout in hoofdlus:",
+    "heartbeatEnabled": "BetterStack heartbeat monitoring ingeschakeld (URL: {url}, Interval: {interval}s)"
+  }
+}

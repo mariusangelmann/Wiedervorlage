@@ -1,19 +1,22 @@
 import * as nodemailer from 'nodemailer';
-import ImapClient from 'imap-simple';
 import { simpleParser } from 'mailparser';
 import { promises as fs } from 'fs';
 import { EmailConfig, Reminder, Settings } from './types';
 import { TIME_PATTERNS, cleanSubject, formatTimeString, delay } from './utils';
 import { TranslationService } from './translations';
 import { HeartbeatService } from './HeartbeatService';
+import * as Mailparser from 'mailparser';
 
 export class EmailReminderService {
   private transporter: nodemailer.Transporter;
-  private imapConfig: ImapClient.ImapSimpleOptions;
+  private imapConfig: any;
   private emailConfig: EmailConfig;
   private settings: Settings;
   private translator: TranslationService;
   private heartbeatService?: HeartbeatService;
+  private isRunning: boolean = false;
+  private currentConnection: any = null;
+  private processedMessageIds: Set<string> = new Set();
 
   constructor(emailConfig: EmailConfig, settings: Settings) {
     console.log('Initializing EmailReminderService...');
@@ -31,15 +34,32 @@ export class EmailReminderService {
 
     console.log('Setting up SMTP transporter...');
     try {
-      this.transporter = nodemailer.createTransport({
+      const smtpConfig: any = {
         host: emailConfig.smtpServer,
         port: emailConfig.smtpPort,
         secure: emailConfig.smtpPort === 465,
-        auth: {
+      };
+
+      if (emailConfig.authMethod === 'oauth2' && emailConfig.oauth2) {
+        console.log('Using OAuth2 authentication for SMTP');
+        smtpConfig.auth = {
+          type: 'OAuth2',
+          user: emailConfig.username,
+          clientId: emailConfig.oauth2.clientId,
+          clientSecret: emailConfig.oauth2.clientSecret,
+          refreshToken: emailConfig.oauth2.refreshToken,
+          accessToken: emailConfig.oauth2.accessToken,
+          accessUrl: emailConfig.oauth2.accessUrl,
+        };
+      } else {
+        console.log('Using password authentication for SMTP');
+        smtpConfig.auth = {
           user: emailConfig.username,
           pass: emailConfig.password,
-        },
-      });
+        };
+      }
+
+      this.transporter = nodemailer.createTransport(smtpConfig);
       console.log('SMTP transporter created successfully');
     } catch (error) {
       console.error('Error creating SMTP transporter:', error);
@@ -48,15 +68,30 @@ export class EmailReminderService {
 
     console.log('Setting up IMAP config...');
     try {
+      const imapAuth: any = {};
+      
+      if (this.emailConfig.authMethod === 'oauth2' && this.emailConfig.oauth2) {
+        console.log('Using OAuth2 authentication for IMAP');
+        // For OAuth2, we need to generate the XOAUTH2 string
+        imapAuth.xoauth2 = this.generateXOAuth2String(
+          this.emailConfig.username,
+          this.emailConfig.oauth2.accessToken || this.emailConfig.oauth2.refreshToken
+        );
+      } else {
+        console.log('Using password authentication for IMAP');
+        imapAuth.user = this.emailConfig.username;
+        imapAuth.password = this.emailConfig.password;
+      }
+
       this.imapConfig = {
         imap: {
-          user: emailConfig.username,
-          password: emailConfig.password,
-          host: emailConfig.imapServer,
-          port: emailConfig.imapPort,
+          ...imapAuth,
+          host: this.emailConfig.imapServer,
+          port: this.emailConfig.imapPort,
           tls: true,
           tlsOptions: { rejectUnauthorized: false },
-          debug: this.settings.debugMode ? console.log : undefined
+          debug: this.settings.debugMode ? console.log : undefined,
+          connectionTimeout: 10000 // Increase timeout to 10 seconds
         }
       };
       console.log('IMAP config created successfully');
@@ -66,6 +101,17 @@ export class EmailReminderService {
     }
     
     console.log('EmailReminderService initialized successfully');
+  }
+
+  private generateXOAuth2String(username: string, accessToken: string): string {
+    const authString = [
+      `user=${username}`,
+      `auth=Bearer ${accessToken}`,
+      '',
+      ''
+    ].join('\x01');
+    
+    return Buffer.from(authString).toString('base64');
   }
 
   private async parseReminderAddress(address: string): Promise<{ reminderTime: Date; unit: string; amount: number } | null> {
@@ -120,38 +166,119 @@ export class EmailReminderService {
     await fs.writeFile(this.settings.remindersFile, JSON.stringify(reminders, null, 2));
   }
 
-  private async sendConfirmation(to: string, reminderTime: Date): Promise<void> {
-    const timeDiff = reminderTime.getTime() - new Date().getTime();
-    const timeStr = formatTimeString(timeDiff, this.translator);
+  private async loadProcessedMessageIds(): Promise<void> {
+    try {
+      const content = await fs.readFile(this.settings.processedFile, 'utf-8');
+      const ids = JSON.parse(content);
+      this.processedMessageIds = new Set(ids);
+      if (this.settings.debugMode) {
+        console.log(`[DEBUG] Loaded ${this.processedMessageIds.size} processed message IDs`);
+      }
+    } catch (error) {
+      // File doesn't exist or is empty, start with empty set
+      this.processedMessageIds = new Set();
+    }
+  }
 
-    await this.transporter.sendMail({
-      from: this.emailConfig.username,
-      to,
-      subject: this.translator.translate('emails.confirmationSubject'),
-      text: this.translator.translate('emails.confirmationBody', {
+  private async saveProcessedMessageId(messageId: string): Promise<void> {
+    this.processedMessageIds.add(messageId);
+    const ids = Array.from(this.processedMessageIds);
+    await fs.writeFile(this.settings.processedFile, JSON.stringify(ids, null, 2));
+  }
+
+  private isMessageProcessed(messageId: string): boolean {
+    return this.processedMessageIds.has(messageId);
+  }
+
+  private async sendConfirmation(to: string, reminderTime: Date): Promise<void> {
+    try {
+      const timeDiff = reminderTime.getTime() - new Date().getTime();
+      const timeStr = formatTimeString(timeDiff, this.translator);
+
+      const textBody = this.translator.translate('emails.confirmationBody', {
         timeStr,
         deliveryTime: reminderTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US')
-      })
-    });
+      });
+
+      // Create a simple HTML version of the confirmation
+      const htmlBody = `
+        <div style="font-family: Arial, sans-serif; padding: 20px;">
+          <div style="background-color: #e8f5e9; padding: 20px; border-radius: 5px; border-left: 4px solid #4caf50;">
+            <h2 style="color: #2e7d32; margin-top: 0;">✅ ${this.translator.translate('emails.confirmationSubject')}</h2>
+            <p style="font-size: 16px; line-height: 1.5; color: #333;">
+              ${textBody.replace(/\n/g, '<br>')}
+            </p>
+          </div>
+        </div>
+      `;
+
+      await this.transporter.sendMail({
+        from: this.emailConfig.username,
+        to,
+        subject: this.translator.translate('emails.confirmationSubject'),
+        text: textBody,
+        html: htmlBody
+      });
+    } catch (error: any) {
+      console.error('\n❌ Failed to send confirmation email');
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      
+      if (error.code === 'EAUTH' || error.response?.includes('Authentication')) {
+        console.error('SMTP Authentication failed. Check your email credentials.');
+        if (this.emailConfig.smtpServer.includes('gmail')) {
+          console.error('For Gmail, use an app password instead of your regular password.');
+        }
+      } else {
+        console.error(`Error: ${error.message || error}`);
+      }
+      
+      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+      throw error;
+    }
   }
 
   private async sendReminder(reminder: Reminder): Promise<void> {
-    const intervalText = `${reminder.timeAmount} ${this.translator.getTimeUnitText(reminder.timeUnit)}`;
-    const createdTime = new Date(reminder.createdAt);
+      const intervalText = `${reminder.timeAmount} ${this.translator.getTimeUnitText(reminder.timeUnit)}`;
+      const createdTime = new Date(reminder.createdAt);
 
-    await this.transporter.sendMail({
-      from: this.emailConfig.username,
-      to: reminder.originalFrom,
-      subject: this.translator.translate('emails.reminderSubject', { subject: reminder.subject }),
-      text: this.translator.translate('emails.reminderBody', {
+      const textBody = this.translator.translate('emails.reminderBody', {
         interval: intervalText,
         createdTime: createdTime.toLocaleString(this.settings.language === 'de' ? 'de-DE' : 'en-US'),
         separator: '='.repeat(50),
         body: reminder.body
-      }),
-      references: reminder.references
-    });
-  }
+      });
+
+      // Create HTML body if the original email had HTML content
+      let htmlBody: string | undefined;
+      if (reminder.html) {
+        // Extract the header part from the text body (everything before the separator)
+        const textLines = textBody.split('\n');
+        const separatorIndex = textLines.findIndex(line => line.includes('='.repeat(50)));
+        const headerText = textLines.slice(0, separatorIndex).join('<br>');
+        
+        // Wrap the reminder information and original HTML content in a proper HTML structure
+        htmlBody = `
+          <div style="font-family: Arial, sans-serif; padding: 20px;">
+            <div style="background-color: #f0f0f0; padding: 15px; border-radius: 5px; margin-bottom: 20px;">
+              ${headerText}
+            </div>
+            <hr style="border: 1px solid #ccc; margin: 20px 0;">
+            <div style="padding: 10px;">
+              ${reminder.html}
+            </div>
+          </div>
+        `;
+      }
+
+      await this.transporter.sendMail({
+        from: this.emailConfig.username,
+        to: reminder.originalFrom,
+        subject: this.translator.translate('emails.reminderSubject', { subject: reminder.subject }),
+        text: textBody,
+        html: htmlBody,
+        references: reminder.references
+      });
+    }
 
   public async processReminders(): Promise<void> {
     if (this.settings.debugMode) {
@@ -196,17 +323,38 @@ export class EmailReminderService {
   }
 
   public async checkMailbox(): Promise<void> {
-    let connection: ImapClient.ImapSimple | null = null;
+    let connection: any | null = null;
     try {
       if (this.settings.debugMode) {
         console.log('[DEBUG] Starting mailbox check');
         console.log(`[DEBUG] Connecting to IMAP server: ${this.emailConfig.imapServer}:${this.emailConfig.imapPort}`);
       }
 
-      connection = await ImapClient.connect(this.imapConfig);
+      const imapConfig = {
+        imap: {
+          user: this.emailConfig.username,
+          password: this.emailConfig.password,
+          host: this.emailConfig.imapServer,
+          port: this.emailConfig.imapPort,
+          tls: true,
+          tlsOptions: { rejectUnauthorized: false },
+          debug: this.settings.debugMode ? console.log : undefined,
+          connectionTimeout: 10000 // Increase timeout to 10 seconds
+        }
+      };
+
+      const imapSimple = require('imap-simple');
+      connection = await imapSimple.connect(imapConfig);
+      this.currentConnection = connection;
       
       if (this.settings.debugMode) {
         console.log('[DEBUG] IMAP connection established successfully');
+      }
+      
+      // Check if we're shutting down
+      if (!this.isRunning) {
+        console.log('Shutdown requested, aborting mailbox check');
+        return;
       }
       
       if (this.settings.debugMode) {
@@ -223,15 +371,8 @@ export class EmailReminderService {
       }
 
       const fetchOptions = {
-        bodies: [
-          // Get specific headers we need
-          'HEADER.FIELDS (FROM TO CC BCC DELIVERED-TO X-ORIGINAL-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)',
-          // Get the message body
-          'TEXT',
-          // Get all headers for complete parsing
-          'HEADER'
-        ],
-        markSeen: true,
+        bodies: [''],  // Empty string fetches the entire message
+        markSeen: false,  // Don't mark as seen since we process all emails
         struct: true
       };
 
@@ -239,16 +380,23 @@ export class EmailReminderService {
         console.log('[DEBUG] Using fetch options:', JSON.stringify(fetchOptions, null, 2));
       }
 
+      // Calculate date for search window
+      const daysBack = this.settings.searchDaysBack || 7;
+      const searchDate = new Date();
+      searchDate.setDate(searchDate.getDate() - daysBack);
+      const dateString = searchDate.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
       if (this.settings.debugMode) {
         console.log('[DEBUG] IMAP fetch options:', fetchOptions);
-        console.log('[DEBUG] Searching for unread messages');
+        console.log(`[DEBUG] Searching for messages from the last ${daysBack} days (since ${dateString})`);
       }
 
-      const searchCriteria = ['UNSEEN'];
+      // Search for all messages from the configured time window (not just unread)
+      const searchCriteria = [['SINCE', dateString]];
       const messages = await connection.search(searchCriteria, fetchOptions);
       
       if (this.settings.debugMode) {
-        console.log(`[DEBUG] Found ${messages.length} unread messages`);
+        console.log(`[DEBUG] Found ${messages.length} messages to check`);
       }
 
       for (const message of messages) {
@@ -256,44 +404,63 @@ export class EmailReminderService {
           console.log('[DEBUG] Processing message:', message.attributes?.uid);
         }
 
-        // Get the headers and text parts
-        const headerPart = message.parts.find(p => p.which === 'HEADER.FIELDS (FROM TO CC BCC DELIVERED-TO X-ORIGINAL-TO SUBJECT MESSAGE-ID IN-REPLY-TO REFERENCES)');
-        const textPart = message.parts.find(p => p.which === 'TEXT');
-        
-        if (!headerPart || !textPart) {
-          console.log('[DEBUG] Missing required message parts');
+        // Get the entire message
+        const allParts = message.parts.filter((p: any) => p.which === '');
+        if (!allParts || allParts.length === 0) {
+          console.log('[DEBUG] Missing message body');
+          continue;
+        }
+        const fullMessage = allParts[0].body as string;
+
+        // Use mailparser to parse the entire message
+        const parsedMessage = await simpleParser(fullMessage);
+
+        if (this.settings.debugMode) {
+          console.log('[DEBUG] Parsed message:', parsedMessage);
+        }
+
+        const { to, cc, bcc, from, subject, messageId, text, html } = parsedMessage;
+
+        // Check if we've already processed this message
+        const msgId = Array.isArray(messageId) ? messageId[0] : messageId || '';
+        if (msgId && this.isMessageProcessed(msgId)) {
+          if (this.settings.debugMode) {
+            console.log(`[DEBUG] Message ${msgId} already processed, skipping`);
+          }
           continue;
         }
 
-        if (this.settings.debugMode) {
-          console.log('[DEBUG] Header part:', headerPart.body);
-          console.log('[DEBUG] Text part:', textPart.body);
-        }
-
-        // Parse headers directly from the IMAP response
-        const headers = headerPart.body as { [key: string]: string | string[] };
-        const text = textPart.body as string;
-        
         // Helper function to convert header values to strings
         const headerToString = (value: string | string[]): string => {
           return Array.isArray(value) ? value.join(', ') : value;
         };
         
+        // Helper function to convert AddressObject to string
+        const addressToString = (addr: Mailparser.AddressObject | Mailparser.AddressObject[] | string | undefined): string => {
+          if (!addr) return '';
+          if (typeof addr === 'string') return addr;
+          if (Array.isArray(addr)) {
+            return addr.map(a => a.text || '').join(', ');
+          }
+          return addr.text || '';
+        };
+        
         // Manually extract header lines we need
         const headerLines = [
-          { key: 'delivered-to', line: headerToString(headers['delivered-to'] || '') },
-          { key: 'x-original-to', line: headerToString(headers['x-original-to'] || '') }
+          { key: 'delivered-to', line: headerToString(parsedMessage.headerLines?.find(h => h.key === 'delivered-to')?.line || '') },
+          { key: 'x-original-to', line: headerToString(parsedMessage.headerLines?.find(h => h.key === 'x-original-to')?.line || '') }
         ];
         
         // Parse headers while maintaining original structure
         const parsed = {
-          to: headers['to'] || '',
-          cc: headers['cc'] || '',
-          bcc: headers['bcc'] || '',
-          from: headers['from'] || '',
-          subject: headers['subject'] || '',
-          messageId: headers['message-id'] || '',
-          text,
+          to: to,
+          cc: cc,
+          bcc: bcc,
+          from: from,
+          subject: subject || '',
+          messageId: messageId || '',
+          text: text || '',
+          html: html || '',
           headerLines
         };
         
@@ -302,7 +469,7 @@ export class EmailReminderService {
             to: parsed.to,
             cc: parsed.cc,
             bcc: parsed.bcc,
-            from: headerToString(parsed.from || ''),
+            from: addressToString(parsed.from),
             subject: parsed.subject,
             deliveredTo: parsed.headerLines.find(h => h.key === 'delivered-to')?.line,
             originalTo: parsed.headerLines.find(h => h.key === 'x-original-to')?.line
@@ -310,9 +477,9 @@ export class EmailReminderService {
         }
 
         // Convert header values to strings
-        const toStr = Array.isArray(parsed.to) ? parsed.to.join(', ') : parsed.to;
-        const ccStr = Array.isArray(parsed.cc) ? parsed.cc.join(', ') : parsed.cc;
-        const bccStr = Array.isArray(parsed.bcc) ? parsed.bcc.join(', ') : parsed.bcc;
+        const toStr = addressToString(parsed.to);
+        const ccStr = addressToString(parsed.cc);
+        const bccStr = addressToString(parsed.bcc);
 
         // Get all possible recipient addresses
         const allRecipients = [
@@ -327,9 +494,11 @@ export class EmailReminderService {
             .map(h => h.line)
             .flatMap(line => line.split(','))
             .map(addr => {
+              // Remove header prefix (e.g., "Delivered-To: " or "X-Original-To: ")
+              const cleanAddr = addr.replace(/^[^:]+:\s*/, '').trim();
               // Extract email address from possible "Name <email>" format
-              const match = addr.trim().match(/<([^>]+)>/);
-              const email = match ? match[1] : addr.trim();
+              const match = cleanAddr.match(/<([^>]+)>/);
+              const email = match ? match[1] : cleanAddr;
               return { text: email };
             })
         ].filter(addr => addr.text && addr.text.includes('@')); // Remove empty and invalid addresses
@@ -350,38 +519,43 @@ export class EmailReminderService {
           }
           const address = addr?.text?.toLowerCase() || '';
           if (this.settings.debugMode) {
+            const localPart = address.split('@')[0];
+            const hasTimePattern = /\+\d+[smhdw]/.test(localPart);
             console.log('[DEBUG] Checking address format:', {
               address,
               hasBaseDomain: address.includes(this.emailConfig.baseDomain.toLowerCase()),
-              hasRemindPrefix: address.includes('remind+')
+              hasTimePattern
             });
           }
           const domain = this.emailConfig.baseDomain.toLowerCase();
+        // Check if it's for our domain and has a time pattern (e.g., +20s, +5m, +2h)
+        const localPart = address.split('@')[0];
+        const hasTimePattern = /\+\d+[smhdw]/.test(localPart);
         return address && 
                (address.endsWith(`@${domain}`) || address.endsWith(`@${domain}>`)) && 
-               address.includes('remind+');
+               hasTimePattern;
         });
         
         if (this.settings.debugMode && reminderAddress) {
           console.log('[DEBUG] Found reminder address:', reminderAddress);
         }
         
-        const to = reminderAddress?.text || '';
+        const reminderTo = reminderAddress?.text || '';
 
         if (this.settings.debugMode) {
           console.log('[DEBUG] Message details:', {
-            to,
-            from: headerToString(parsed.from),
+            to: reminderTo,
+            from: addressToString(parsed.from),
             subject: parsed.subject
           });
         }
 
-        if (to.includes(this.emailConfig.baseDomain)) {
+        if (reminderTo.includes(this.emailConfig.baseDomain)) {
           if (this.settings.debugMode) {
             console.log('[DEBUG] Found matching domain in recipient');
           }
 
-          const reminderInfo = await this.parseReminderAddress(to);
+          const reminderInfo = await this.parseReminderAddress(reminderTo);
           if (reminderInfo) {
             if (this.settings.debugMode) {
               console.log('[DEBUG] Valid reminder address found:', {
@@ -392,16 +566,17 @@ export class EmailReminderService {
             }
 
             // Convert from header to string
-            const fromStr = Array.isArray(parsed.from) ? parsed.from.join(', ') : parsed.from;
+            const fromStr = addressToString(parsed.from);
             // Extract email address from possible "Name <email>" format
-            const match = fromStr.match(/<([^>]+)>/);
-            const fromAddress = match ? match[1] : fromStr.trim();
+            const match = fromStr.match(/(?<=<)([^>]+)(?=>)|([^\s@]+@[^\s@]+\.[^\s@]+)/);
+            const fromAddress = match ? (match[1] || match[2]) : fromStr.trim();
                 
             const reminder: Reminder = {
               originalFrom: fromAddress,
               subject: cleanSubject(Array.isArray(parsed.subject) ? parsed.subject.join(' ') : parsed.subject || ''),
               reminderTime: reminderInfo.reminderTime.toISOString(),
               body: parsed.text || '',
+              html: parsed.html || '',
               references: Array.isArray(parsed.messageId) ? parsed.messageId.join(', ') : parsed.messageId || '',
               timeUnit: reminderInfo.unit,
               timeAmount: reminderInfo.amount,
@@ -415,6 +590,30 @@ export class EmailReminderService {
             await this.saveReminder(reminder);
             await this.sendConfirmation(reminder.originalFrom, reminderInfo.reminderTime);
             
+            // Mark this message as processed
+            if (msgId) {
+              await this.saveProcessedMessageId(msgId);
+            }
+            
+            // Move the processed email to trash if configured
+            if (this.settings.deleteProcessedEmails) {
+              try {
+                if (this.settings.debugMode) {
+                  console.log('[DEBUG] Moving processed email to trash');
+                }
+                
+                // Add Deleted flag to the message
+                await connection.addFlags(message.attributes.uid, '\\Deleted');
+                
+                if (this.settings.debugMode) {
+                  console.log('[DEBUG] Email marked for deletion');
+                }
+              } catch (deleteError) {
+                console.error('Failed to move email to trash:', deleteError);
+                // Continue processing even if deletion fails
+              }
+            }
+            
             if (this.settings.debugMode) {
               console.log('[DEBUG] Reminder saved and confirmation sent');
             }
@@ -425,26 +624,90 @@ export class EmailReminderService {
           console.log('[DEBUG] Message not for reminder domain');
         }
       }
-    } catch (error) {
-      if (this.settings.debugMode) {
-        console.log('[DEBUG] Error in checkMailbox:', error);
-      }
+    } catch (error: any) {
       if (this.heartbeatService) {
         this.heartbeatService.setHealthStatus(false);
       }
-      throw error;
+      
+      // Handle authentication errors specifically
+      if (error.textCode === 'AUTHENTICATIONFAILED' || error.source === 'authentication') {
+        console.error('\n❌ Authentication Failed');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        
+        if (this.emailConfig.imapServer.includes('gmail.com')) {
+          console.error('Gmail requires special authentication:');
+          console.error('');
+          console.error('Option 1: Use an App Password (Recommended for password auth)');
+          console.error('  1. Enable 2-factor authentication on your Google account');
+          console.error('  2. Generate an app password: https://myaccount.google.com/apppasswords');
+          console.error('  3. Use the app password instead of your regular password');
+          console.error('');
+          console.error('Option 2: Use OAuth2 (Recommended for production)');
+          console.error('  1. Set AUTH_METHOD=oauth2 in your .env file');
+          console.error('  2. Follow the OAuth2 setup guide in the README');
+          console.error('');
+        } else if (this.emailConfig.imapServer.includes('outlook') || this.emailConfig.imapServer.includes('office365')) {
+          console.error('Outlook/Office365 authentication tips:');
+          console.error('  - If using 2FA, create an app password');
+          console.error('  - Or use OAuth2 authentication (see README)');
+          console.error('');
+        }
+        
+        console.error('Current configuration:');
+        console.error(`  - Email: ${this.emailConfig.username}`);
+        console.error(`  - Server: ${this.emailConfig.imapServer}`);
+        console.error(`  - Auth method: ${this.emailConfig.authMethod || 'password'}`);
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        if (this.settings.debugMode) {
+          console.log('[DEBUG] Full error details:', error);
+        }
+      } else {
+        // Generic error handling
+        console.error('\n❌ Error checking mailbox');
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+        console.error(`Error: ${error.message || error}`);
+        if (error.code) {
+          console.error(`Code: ${error.code}`);
+        }
+        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+        
+        if (this.settings.debugMode) {
+          console.error('[DEBUG] Full error stack:', error.stack || error);
+        }
+      }
     } finally {
       if (connection) {
         if (this.settings.debugMode) {
           console.log('[DEBUG] Closing IMAP connection');
         }
-        connection.end();
+        try {
+          // Expunge deleted messages before closing connection
+          if (this.settings.deleteProcessedEmails) {
+            try {
+              await connection.imap.expunge();
+              if (this.settings.debugMode) {
+                console.log('[DEBUG] Expunged deleted messages');
+              }
+            } catch (expungeError) {
+              console.error('Error expunging deleted messages:', expungeError);
+            }
+          }
+          
+          connection.end();
+          if (this.currentConnection === connection) {
+            this.currentConnection = null;
+          }
+        } catch (err) {
+          console.error('Error closing IMAP connection:', err);
+        }
       }
     }
   }
 
   public async start(): Promise<void> {
     await this.translator.loadTranslations();
+    await this.loadProcessedMessageIds();
     
     console.log(this.translator.translate('console.serviceStart', { interval: this.settings.checkInterval }));
     console.log(this.translator.translate('console.debugMode', { enabled: this.settings.debugMode.toString() }));
@@ -458,7 +721,8 @@ export class EmailReminderService {
       }));
     }
 
-    while (true) {
+    this.isRunning = true;
+    while (this.isRunning) {
       try {
         if (this.settings.debugMode) {
           console.log('[DEBUG] Starting new check cycle');
@@ -490,9 +754,35 @@ export class EmailReminderService {
     }
   }
 
-  public stop(): void {
+  public async stop(): Promise<void> {
+    console.log('Stopping EmailReminderService...');
+    this.isRunning = false;
+    
     if (this.heartbeatService) {
       this.heartbeatService.stop();
     }
+    
+    // Close IMAP connection if open
+    if (this.currentConnection) {
+      try {
+        console.log('Closing IMAP connection...');
+        await this.currentConnection.end();
+        this.currentConnection = null;
+      } catch (error) {
+        console.error('Error closing IMAP connection during shutdown:', error);
+      }
+    }
+    
+    // Close SMTP transporter
+    if (this.transporter) {
+      try {
+        console.log('Closing SMTP transporter...');
+        this.transporter.close();
+      } catch (error) {
+        console.error('Error closing SMTP transporter:', error);
+      }
+    }
+    
+    console.log('EmailReminderService stopped');
   }
 }

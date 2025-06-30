@@ -3,33 +3,33 @@ import { TimePatterns } from './types';
 export const TIME_PATTERNS: TimePatterns = {
   s: {
     name: 'seconds',
-    pattern: new RegExp('remind\\+(\\d+)s'),
+    pattern: new RegExp('\\+(\\d+)s'),
     text: 'Sekunden'
   },
   m: {
     name: 'minutes',
-    pattern: new RegExp('remind\\+(\\d+)m'),
+    pattern: new RegExp('\\+(\\d+)m'),
     text: 'Minuten'
   },
   h: {
     name: 'hours',
-    pattern: new RegExp('remind\\+(\\d+)h'),
+    pattern: new RegExp('\\+(\\d+)h'),
     text: 'Stunden'
   },
   d: {
     name: 'days',
-    pattern: new RegExp('remind\\+(\\d+)d'),
+    pattern: new RegExp('\\+(\\d+)d'),
     text: 'Tage'
   },
   w: {
     name: 'weeks',
-    pattern: new RegExp('remind\\+(\\d+)w'),
+    pattern: new RegExp('\\+(\\d+)w'),
     text: 'Wochen'
   }
 };
 
 export function cleanSubject(subject: string): string {
-  return subject.replace(/^(?:Re|Fwd|FW|AW):\s*/i, '');
+  return subject.replace(/^(?:Re|Fwd|FW|AW):\s*/i, '').replace(/[\u2000-\u206F\u2E00-\u2E7F!'#$%&*+,/:;=?@^`~]/g, '');
 }
 
 import { TranslationService } from './translations';

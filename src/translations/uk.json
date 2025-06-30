@@ -1,0 +1,22 @@
+{
+  "timeUnits": {
+    "seconds": "секунд",
+    "minutes": "хвилин",
+    "hours": "годин",
+    "days": "днів",
+    "weeks": "тижнів"
+  },
+  "emails": {
+    "confirmationSubject": "Нагадування створено",
+    "confirmationBody": "Ваше нагадування створено і буде доставлено через {timeStr}.\nЗапланована доставка: {deliveryTime}",
+    "reminderSubject": "НАГАДУВАННЯ: {subject}",
+    "reminderBody": "Це ваше запитане нагадування (Інтервал: {interval}).\n\nНагадування створено: {createdTime}\n\nОригінальне повідомлення:\n{separator}\n{body}",
+    "unknownInterval": "Невідомий інтервал"
+  },
+  "console": {
+    "serviceStart": "Запуск служби нагадувань з інтервалом перевірки {interval}с",
+    "debugMode": "Режим налагодження: {enabled}",
+    "mainLoopError": "Помилка в основному циклі:",
+    "heartbeatEnabled": "Моніторинг heartbeat BetterStack увімкнено (URL: {url}, Інтервал: {interval}с)"
+  }
+}
